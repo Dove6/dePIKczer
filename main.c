@@ -105,6 +105,7 @@ struct BITMAPHEADER *prepare_bmp_header(struct IMGHEADER *img_header)
         case 0: {
             bmp_header->bV4.bV4Compression = 3; //BI_BITFIELDS
             bmp_header->bV4.bV4Height *= -1;
+            bmp_header->bV4.bV4AlphaMask = 0;
             bmp_header->bV4.bV4RedMask = 0xF800;
             bmp_header->bV4.bV4GreenMask = 0x7E0;
             bmp_header->bV4.bV4BlueMask = 0x1F;
@@ -114,8 +115,25 @@ struct BITMAPHEADER *prepare_bmp_header(struct IMGHEADER *img_header)
             bmp_header->bV4.bV4Compression = 1; //BI_RLE8
             break;
         }
+        case 4: {
+            bmp_header->bV4.bV4Compression = 3; //BI_BITFIELDS
+            bmp_header->bV4.bV4Height *= -1;
+            bmp_header->bV4.bV4AlphaMask = 0;
+            bmp_header->bV4.bV4RedMask = 0xF800;
+            bmp_header->bV4.bV4GreenMask = 0x7E0;
+            bmp_header->bV4.bV4BlueMask = 0x1F;
+            break;
+        }
+        case 5: {
+            bmp_header->bV4.bV4Compression = 4; //BI_JPEG
+            break;
+        }
         default: {
-
+            //bmp_header->bV4.bV4Compression = 3;
+            //bmp_header->bV4.bV4AlphaMask = 0x8000;
+            //bmp_header->bV4.bV4RedMask = 0x7C00;
+            //bmp_header->bV4.bV4GreenMask = 0x3E0;
+            //bmp_header->bV4.bV4BlueMask = 0x1F;
             break;
         }
     }
