@@ -95,18 +95,35 @@ struct BITMAPHEADER *prepare_bmp_header(struct IMGHEADER *img_header)
 
     bmp_header->bV4.bV4Size = sizeof(struct BITMAPV4HEADER);
     bmp_header->bV4.bV4Width = img_header->ihWidth;
-    bmp_header->bV4.bV4Height = -img_header->ihHeight;
+    bmp_header->bV4.bV4Height = img_header->ihHeight;
     bmp_header->bV4.bV4Planes = 1;
     bmp_header->bV4.bV4BitCount = img_header->ihBitCount;
-    bmp_header->bV4.bV4Compression = 3;
+    bmp_header->bV4.bV4RedMask = 0;
+    bmp_header->bV4.bV4GreenMask = 0;
+    bmp_header->bV4.bV4BlueMask = 0;
+    switch (img_header->ihCompresion) {
+        case 0: {
+            bmp_header->bV4.bV4Compression = 3; //BI_BITFIELDS
+            bmp_header->bV4.bV4Height *= -1;
+            bmp_header->bV4.bV4RedMask = 0xF800;
+            bmp_header->bV4.bV4GreenMask = 0x7E0;
+            bmp_header->bV4.bV4BlueMask = 0x1F;
+            break;
+        }
+        case 2: {
+            bmp_header->bV4.bV4Compression = 1; //BI_RLE8
+            break;
+        }
+        default: {
+
+            break;
+        }
+    }
     bmp_header->bV4.bV4SizeImage = img_header->ihSizeImage;
     bmp_header->bV4.bV4XPelsPerMeter = 2835;
     bmp_header->bV4.bV4YPelsPerMeter = 2835;
     bmp_header->bV4.bV4ClrUsed = 0;
     bmp_header->bV4.bV4ClrImportant = 0;
-    bmp_header->bV4.bV4RedMask = 0xF800;
-    bmp_header->bV4.bV4GreenMask = 0x7E0;
-    bmp_header->bV4.bV4BlueMask = 0x1F;
     bmp_header->bV4.bV4CSType = 0x73524742; //sRGB
     bmp_header->bV4.RedX = 0;
     bmp_header->bV4.RedY = 0;
@@ -150,12 +167,12 @@ void write_bmp(FILE *bmp_file, struct BITMAPHEADER *bmp_header, FILE *img_file)
 int main(int argc, char **argv)
 {
     if (argc > 1) {
-        for(int argIter=1;argIter<argc;argIter++){
-            char *out_filename = malloc(strlen(argv[argIter]) + 5);
-            strcpy(out_filename, argv[argIter]);
+        for (int arg_iter=1; arg_iter < argc; arg_iter++) {
+            char *out_filename = malloc(strlen(argv[arg_iter]) + 5);
+            strcpy(out_filename, argv[arg_iter]);
             strcat(out_filename, ".bmp");
             //puts(out_filename);
-            FILE *in_file = fopen(argv[argIter], "rb"), *out_file = fopen(out_filename, "wb");
+            FILE *in_file = fopen(argv[arg_iter], "rb"), *out_file = fopen(out_filename, "wb");
             free(out_filename);
             if (in_file != NULL && out_file != NULL) {
                 struct IMGHEADER *img_header = read_img_header(in_file);
