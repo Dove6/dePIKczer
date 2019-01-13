@@ -150,12 +150,12 @@ void write_bmp(FILE *bmp_file, struct BITMAPHEADER *bmp_header, FILE *img_file)
 int main(int argc, char **argv)
 {
     if (argc > 1) {
-        for(int i=1;i<argc;i++){
-            char *out_filename = malloc(strlen(argv[i]) + 5);
-            strcpy(out_filename, argv[i]);
+        for(int argIter=1;argIter<argc;argIter++){
+            char *out_filename = malloc(strlen(argv[argIter]) + 5);
+            strcpy(out_filename, argv[argIter]);
             strcat(out_filename, ".bmp");
             //puts(out_filename);
-            FILE *in_file = fopen(argv[i], "rb"), *out_file = fopen(out_filename, "wb");
+            FILE *in_file = fopen(argv[argIter], "rb"), *out_file = fopen(out_filename, "wb");
             free(out_filename);
             if (in_file != NULL && out_file != NULL) {
                 struct IMGHEADER *img_header = read_img_header(in_file);
