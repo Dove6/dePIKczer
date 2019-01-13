@@ -150,31 +150,33 @@ void write_bmp(FILE *bmp_file, struct BITMAPHEADER *bmp_header, FILE *img_file)
 int main(int argc, char **argv)
 {
     if (argc > 1) {
-        char *out_filename = malloc(strlen(argv[1]) + 5);
-        strcpy(out_filename, argv[1]);
-        strcat(out_filename, ".bmp");
-        //puts(out_filename);
-        FILE *in_file = fopen(argv[1], "rb"), *out_file = fopen(out_filename, "wb");
-        free(out_filename);
-        if (in_file != NULL && out_file != NULL) {
-            struct IMGHEADER *img_header = read_img_header(in_file);
-            if (img_header != NULL) {
-                struct BITMAPHEADER *bmp_header = prepare_bmp_header(img_header);
+        for(int i=1;i<argc;i++){
+            char *out_filename = malloc(strlen(argv[i]) + 5);
+            strcpy(out_filename, argv[i]);
+            strcat(out_filename, ".bmp");
+            //puts(out_filename);
+            FILE *in_file = fopen(argv[i], "rb"), *out_file = fopen(out_filename, "wb");
+            free(out_filename);
+            if (in_file != NULL && out_file != NULL) {
+                struct IMGHEADER *img_header = read_img_header(in_file);
+                if (img_header != NULL) {
+                    struct BITMAPHEADER *bmp_header = prepare_bmp_header(img_header);
 
-                puts("Wczytano naglowek!");
-                printf("Rozmiar obrazu: %d x %d px\n", img_header->ihWidth, abs(img_header->ihHeight));
+                    puts("Wczytano naglowek!");
+                    printf("Rozmiar obrazu: %d x %d px\n", img_header->ihWidth, abs(img_header->ihHeight));
 
-                write_bmp(out_file, bmp_header, in_file);
-                puts("Przekonwertowano do formatu BMP!");
+                    write_bmp(out_file, bmp_header, in_file);
+                    puts("Przekonwertowano do formatu BMP!");
 
-                free(bmp_header);
-                free(img_header);
+                    free(bmp_header);
+                    free(img_header);
+                }
+            } else {
+                perror("File opening error: ");
             }
-        } else {
-            perror("File opening error: ");
+            fclose(out_file);
+            fclose(in_file);
         }
-        fclose(out_file);
-        fclose(in_file);
     } else {
         //printf("%d + %d = %d\n", sizeof(struct BITMAPFILEHEADER), sizeof(struct BITMAPV4HEADER), sizeof(struct BITMAPHEADER));
         puts("Podaj nazwe pliku jako argument!");
