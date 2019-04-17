@@ -198,27 +198,20 @@ struct BITMAPHEADER *prepare_bmp_header(IMGHEADER *img_header)
     bmp_header->bV4.bV4GreenMask = 0;
     bmp_header->bV4.bV4BlueMask = 0;
     switch (img_header->ihCompresion) {
-        case 4: {
-            cout << "Format nr 4 ;-;\n";
-            //?
-        }
         case 0: {
             cout << "Wykryto obraz bez kompresji!\n";
-            bmp_header->bV4.bV4Compression = 3; //BI_BITFIELDS
-            bmp_header->bV4.bV4Height *= -1;
-            bmp_header->bV4.bV4AlphaMask = 0;
-            bmp_header->bV4.bV4RedMask = 0xF800;
-            bmp_header->bV4.bV4GreenMask = 0x7E0;
-            bmp_header->bV4.bV4BlueMask = 0x1F;
             break;
         }
         case 2: {
-            cout << "Wykryto kompresjê CLZW2!\n";
-			//CLZW2
+            cout << "Wykryto kompresje CLZW2!\n";
             break;
         }
+        case 4: {
+            cout << "Format nr 4 ;-;\n";
+			break;
+        }
         case 5: {
-            bmp_header->bV4.bV4Compression = 4; //BI_JPEG
+            cout << "To JPG, a nie BMP. Zapomnij, co widziales.\n";
             break;
         }
         default: {
@@ -226,6 +219,13 @@ struct BITMAPHEADER *prepare_bmp_header(IMGHEADER *img_header)
             break;
         }
     }
+	bmp_header->bV4.bV4Compression = 3; //BI_BITFIELDS
+    bmp_header->bV4.bV4Height *= -1;
+    bmp_header->bV4.bV4AlphaMask = 0;
+    bmp_header->bV4.bV4RedMask = 0xF800;
+    bmp_header->bV4.bV4GreenMask = 0x7E0;
+    bmp_header->bV4.bV4BlueMask = 0x1F;
+
     bmp_header->bV4.bV4SizeImage = img_header->ihSizeImage;
     bmp_header->bV4.bV4XPelsPerMeter = 2835;
     bmp_header->bV4.bV4YPelsPerMeter = 2835;
@@ -251,16 +251,32 @@ struct BITMAPHEADER *prepare_bmp_header(IMGHEADER *img_header)
     return bmp_header;
 }
 
+void decompress_bmp(string &buffer, ifstream &img_file, IMGHEADER *img_header, BITMAPHEADER *bmp_header)
+{
+	iostream::pos_type init_pos = img_file.tellg();
+    img_file.seekg(40, ios::beg);
+
+	char *in_buffer = new char[img_header->ihSizeImage];
+	img_file.read(in_buffer, img_header->ihSizeImage);
+	CLZWCompression2 lzw(in_buffer, img_header->ihSizeImage);
+	char *out_buffer = lzw.decompress();
+	bmp_header->bV4.bV4SizeImage = reinterpret_cast<int *>(in_buffer)[0];
+    bmp_header->bf.bfSize = bmp_header->bf.bfOffBits + bmp_header->bV4.bV4SizeImage;
+	cout << "Rozmiar pliku wyjsciowego po dekompresji: " << (unsigned)bmp_header->bf.bfSize << '\n';
+	buffer.reserve(bmp_header->bV4.bV4SizeImage);
+	buffer.assign(out_buffer, bmp_header->bV4.bV4SizeImage);
+	delete[] in_buffer;
+
+    img_file.seekg(init_pos);
+}
+
 void write_bmp(ofstream &bmp_file, BITMAPHEADER *bmp_header, ifstream &img_file)
 {
-	//TODO: switch do formatu
     iostream::pos_type init_pos = img_file.tellg();
-    img_file.seekg(0, ios::beg);
+	img_file.seekg(40, ios::beg);
 
-    //fwrite(&bmp_header->bf.bfType, 1, sizeof(unsigned short), bmp_file);
 	bmp_file.write((char *)(&bmp_header->bf.bfType), sizeof(BITMAPFILEHEADER) - 2);
 	bmp_file.write((char *)(&bmp_header->bV4), sizeof(BITMAPV4HEADER));
-	img_file.seekg(40, ios::beg);
     char buffer[BUFF_SIZE];
     while (!img_file.eof()) {
 		img_file.read(buffer, BUFF_SIZE);
@@ -270,44 +286,97 @@ void write_bmp(ofstream &bmp_file, BITMAPHEADER *bmp_header, ifstream &img_file)
     img_file.seekg(init_pos);
 }
 
+void write_bmp(ofstream &bmp_file, BITMAPHEADER *bmp_header, string &data_buffer)
+{
+	bmp_file.write((char *)(&bmp_header->bf.bfType), sizeof(BITMAPFILEHEADER) - 2);
+	bmp_file.write((char *)(&bmp_header->bV4), sizeof(BITMAPV4HEADER));
+    bmp_file.write(data_buffer.c_str(), data_buffer.size());
+}
+
+void write_jpg(ofstream &jpg_file, ifstream &img_file)
+{
+	iostream::pos_type init_pos = img_file.tellg();
+	img_file.seekg(40, ios::beg);
+
+    char buffer[BUFF_SIZE];
+    while (!img_file.eof()) {
+		img_file.read(buffer, BUFF_SIZE);
+		jpg_file.write(buffer, img_file.gcount());
+    }
+
+    img_file.seekg(init_pos);
+}
+
 int main(int argc, char **argv)
 {
     if (argc > 1) {
         for (int arg_iter = 1; arg_iter < argc; arg_iter++) {
-            string out_filename = argv[arg_iter] + string(".bmp");
-            //puts(out_filename);
             ifstream in_file(argv[arg_iter], ios::in | ios::binary);
-			ofstream out_file(out_filename, ios::out | ios::binary);
-            if (in_file.good() && out_file.good()) {
+            if (in_file.good()) {
                 IMGHEADER *img_header = read_img_header(in_file);
                 if (img_header != nullptr) {
-                    BITMAPHEADER *bmp_header = prepare_bmp_header(img_header);
+                    BITMAPHEADER *bmp_header;
 
                     cout << "Wczytano naglowek!\n";
                     cout << "Rozmiar obrazu: " << img_header->ihWidth << " x " << abs(img_header->ihHeight) << " px\n";
+					
+					string out_filename = argv[arg_iter];
+					if (img_header->ihCompresion != 5) {
+						bmp_header = prepare_bmp_header(img_header);
+						out_filename += string(".bmp");
+					} else {
+						out_filename += string(".jpg");
+					}
+					ofstream out_file(out_filename, ios::out | ios::binary);
 
-                    write_bmp(out_file, bmp_header, in_file);
-                    cout << "Przekonwertowano do formatu BMP!\n";
+					if (out_file.good()) {
+						switch (img_header->ihCompresion) {
+							case 4: {
+								//?
+							}
+							case 0: {
+								write_bmp(out_file, bmp_header, in_file);
+								break;
+							}
+							case 2: {
+								//CLZW2
+								string buffer;
+								decompress_bmp(buffer, in_file, img_header, bmp_header);
+								write_bmp(out_file, bmp_header, buffer);
+								break;
+							}
+							case 5: {
+								write_jpg(out_file, in_file);
+								break;
+							}
+							default: {
+								cout << "Niestandardowy format pliku .img!\n";
+								break;
+							}
+						}
+ 
+						if (img_header->ihCompresion != 5) {
+							cout << "Przekonwertowano do formatu BMP!\n";
+						} else {
+							cout << "Przekonwertowano do formatu JPG!\n";
+						}
+					} else {
+						cerr << "File error: " << strerror(errno) << " for output file " << out_filename << '\n';
+					}
 
-                    delete bmp_header;
+					if (img_header->ihCompresion != 5) {
+						delete bmp_header;
+					}
                     delete img_header;
+					out_file.close();
                 }
             } else {
-                cerr << "File error: " << strerror(errno) << '\n';
-				cerr << "\tfor:";
-				if (!in_file.good()) {
-					cerr << ' ' << argv[arg_iter];
-				}
-				if (!out_file.good()) {
-					cerr << ' ' << out_filename;
-				}
-				cerr << '\n';
+                cerr << "File error: " << strerror(errno) << " for input file " << argv[arg_iter] << '\n';
             }
-			out_file.close();
 			in_file.close();
+			cout << '\n';
         }
     } else {
-        //printf("%d + %d = %d\n", sizeof(struct BITMAPFILEHEADER), sizeof(struct BITMAPV4HEADER), sizeof(struct BITMAPHEADER));
         cerr << "Podaj nazwe pliku jako argument!\n";
     }
     return 0;

@@ -55,5 +55,5 @@ nppBackup
 bin
 !bin/Release/dePIKczer.exe
 obj
-.depend
-.layout
+*.depend
+*.layout
