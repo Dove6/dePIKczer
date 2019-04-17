@@ -377,7 +377,9 @@ int main(int argc, char **argv)
 			cout << '\n';
         }
     } else {
-        cerr << "Podaj nazwe pliku jako argument!\n";
+        cout << "Sposob uzycia:\n";
+		cout << "\tdePIKczer nazwa_pliku1[, nazwa_pliku2, ...]\n";
+		cerr << "Nie podano argumentow!\n";
     }
     return 0;
 }
