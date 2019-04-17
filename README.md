@@ -1,8 +1,8 @@
 # dePIKczer
 Koder/dekoder formatu graficznego Aidem Media
 
-Do pobrania tutaj: [a relative link](Release/dePIKczer.exe)
-Wymaga biblioteki Piklib8.dll (do pobrania również tutaj: [a relative link](Release/Piklib8.dll))
+Do pobrania [tutaj](Release/dePIKczer.exe).
+Wymaga biblioteki [Piklib8.dll](Release/Piklib8.dll)
 
 Uwaga: używanie tego oprogramowania oraz dokonywanie jakichkolwiek zmian w produktach firmy Aidem Media jest niezgodne z umową licencyjną (zawieraną między Nabywcą a Firmą "z chwilą zdjęcia z opakowania płyty CD folii zabezpieczającej"), zgodnie z punktem drugim wspomnianej umowy:
 
