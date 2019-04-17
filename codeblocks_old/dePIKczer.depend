@@ -1,0 +1,6 @@
+# depslib dependency file v1.0
+1547339515 source:e:\programowanie\depikczer\main.c
+	<stdio.h>
+	<stdlib.h>
+	<string.h>
+

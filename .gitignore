@@ -52,5 +52,8 @@ Mkfile.old
 dkms.conf
 
 nppBackup
-bin
-obj
+Debug
+Release
+!Release/dePIKczer.exe
+!Release/Piklib8.dll
+ipch
