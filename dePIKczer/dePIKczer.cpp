@@ -204,9 +204,20 @@ struct BITMAPHEADER *prepare_bmp_header(IMGHEADER *img_header, const vector<char
 	bmp_header->bV5.bV5Compression = BI_BITFIELDS;
     bmp_header->bV5.bV5Height *= -1;
     bmp_header->bV5.bV5AlphaMask = 0;
-    bmp_header->bV5.bV5RedMask =   0xF800;
-    bmp_header->bV5.bV5GreenMask = 0x07E0;
-    bmp_header->bV5.bV5BlueMask =  0x001F;
+	switch (img_header->ihBitCount) {
+		case 15: {
+		}
+		case 16: {
+			bmp_header->bV5.bV5RedMask =   0xF800;
+			bmp_header->bV5.bV5GreenMask = 0x07E0;
+			bmp_header->bV5.bV5BlueMask =  0x001F;
+			break;
+		}
+		default: {
+			delete bmp_header;
+			throw runtime_error("Nieznany format kolorow pliku!\n");
+		}
+	}
 
     bmp_header->bV5.bV5SizeImage = bmp_data.size();
 	/*if (img_header->ihSizeAlpha > 0) {
@@ -266,7 +277,7 @@ vector<char> align_bmp_data(IMGHEADER *img_header, const vector<char> &img_data_
 	if (img_header->ihBitCount == 16) {
 		//if (img_header->ihSizeAlpha == 0) {
 			if (img_header->ihWidth % 2 == 0) {
-				return img_data_color;
+				return vector<char>(0);
 			} else {
 				unsigned row_length = img_header->ihWidth * 2;
 				unsigned padding_length = 4 - row_length % 4;
@@ -287,6 +298,8 @@ vector<char> align_bmp_data(IMGHEADER *img_header, const vector<char> &img_data_
 				throw runtime_error("Nieznany format alfy pliku!\n");;
 			}
 		}*/
+	} else if (img_header->ihBitCount == 15) {
+		return vector<char>(0);
 	} else {
 		throw runtime_error("Nieznany format kolorow pliku!\n");
 	}
@@ -369,10 +382,20 @@ int main(int argc, char **argv)
 									cout << " (w tym alpha: " << img_data_alpha.size() << ')';
 								}
 								cout << '\n';
-								vector<char> bmp_data = align_bmp_data(img_header, img_data_color, img_data_alpha);
-								cout << "Przekonwertowano do formatu BMP!\n";
-								write_bmp(out_file, img_header, bmp_data);
-								cout << "Zapisano plik!\n";
+								vector<char> bmp_data;
+								try {
+									bmp_data = align_bmp_data(img_header, img_data_color, img_data_alpha);
+									cout << "Przekonwertowano do formatu BMP!\n";
+									if (bmp_data.size() > 0) {
+										write_bmp(out_file, img_header, bmp_data);
+									} else {
+										write_bmp(out_file, img_header, img_data_color);
+									}
+									cout << "Zapisano plik!\n";
+								} catch (exception &e) {
+									cerr << e.what();
+									cerr << "Nie udalo sie dokonac kompresji!\n";
+								}
 							} else {
 								write_jpg(out_file, img_data_color);
 								cout << "Przekonwertowano do formatu JPG!\n";
