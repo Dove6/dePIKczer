@@ -299,7 +299,21 @@ vector<char> align_bmp_data(IMGHEADER *img_header, const vector<char> &img_data_
 			}
 		}*/
 	} else if (img_header->ihBitCount == 15) {
-		return vector<char>(0);
+		vector<char> buffer(img_data_color);
+		clog << "1...\n";
+		unsigned short green;
+		for (int i = 0; i < buffer.size(); i += 2) {
+			green = (((unsigned char)(buffer[i + 1]) & 0x3) << 3) | (((unsigned char)(buffer[i]) & 0xE0) >> 5);
+			green *= 63 / 31.;
+			buffer[i + 1] <<= 1;
+			buffer[i + 1] &= 0xF8;
+			buffer[i] &= 0x1F;
+			buffer[i + 1] |= (0x7 & (green >> 2));
+			buffer[i] |= (0xE0 & (green << 3));
+		}
+		clog << "2...\n";
+		//return vector<char>(0);
+		return buffer;
 	} else {
 		throw runtime_error("Nieznany format kolorow pliku!\n");
 	}
