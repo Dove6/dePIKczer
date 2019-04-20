@@ -19,5 +19,6 @@
 #include <algorithm>
 #include <array>
 #include <vector>
+#include <exception>
 
 #include <Windows.h>
