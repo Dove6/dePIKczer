@@ -38,63 +38,23 @@ public:
 
 struct IMGHEADER {
     char ihType[4];
-    int ihWidth;
-    int ihHeight;
-    int ihBitCount;
-    int ihSizeImage;
-    int something;
-    int ihCompresion;
-    int ihSizeAlpha;
-    int pos_x;
-    int pos_y;
+    int  ihWidth;
+    int  ihHeight;
+    int  ihBitCount;
+    int  ihSizeImage;
+    int  something;
+    int  ihCompression;
+    int  ihSizeAlpha;
+    int  ihPosX;
+    int  ihPosY;
 };
 
-struct BITMAPFILEHEADER {
-    unsigned short filler;
-    unsigned short bfType;
-    unsigned long bfSize;
-    unsigned short bfReserved1;
-    unsigned short bfReserved2;
-    unsigned long bfOffBits;
-};
-
-struct BITMAPV4HEADER {
-    unsigned long bV4Size;
-    long bV4Width;
-    long bV4Height;
-    unsigned short bV4Planes;
-    unsigned short bV4BitCount;
-    unsigned long bV4Compression;
-    unsigned long bV4SizeImage;
-    long bV4XPelsPerMeter;
-    long bV4YPelsPerMeter;
-    unsigned long bV4ClrUsed;
-    unsigned long bV4ClrImportant;
-    unsigned long bV4RedMask;
-    unsigned long bV4GreenMask;
-    unsigned long bV4BlueMask;
-    unsigned long bV4AlphaMask;
-    unsigned long bV4CSType;
-    //CIEXYZ
-    long RedX;
-    long RedY;
-    long RedZ;
-    long GreenX;
-    long GreenY;
-    long GreenZ;
-    long BlueX;
-    long BlueY;
-    long BlueZ;
-    //
-    unsigned long bV4GammaRed;
-    unsigned long bV4GammaGreen;
-    unsigned long bV4GammaBlue;
-};
-
+#include <pshpack2.h>
 struct BITMAPHEADER {
-    struct BITMAPFILEHEADER bf;
-    struct BITMAPV4HEADER bV4;
+    BITMAPFILEHEADER bf;
+    BITMAPV5HEADER   bV5;
 };
+#include <poppack.h>
 
 /*int CLZW2_wrapper(int argc, char **argv)
 {
@@ -155,7 +115,7 @@ struct BITMAPHEADER {
 	return 0;
 }*/
 
-struct IMGHEADER *read_img_header(ifstream &img_file)
+IMGHEADER *read_img_header(ifstream &img_file)
 {
     iostream::pos_type init_pos;
 	init_pos = img_file.tellg();
@@ -165,6 +125,29 @@ struct IMGHEADER *read_img_header(ifstream &img_file)
 	if (img_file.read((char *)(img_header), sizeof(IMGHEADER))) {
 		if (img_header->ihType == string("PIK")) {
 			cout << "Poprawny typ pliku\n";
+			cout << "Format: " << img_header->ihCompression;
+			switch (img_header->ihCompression) {
+				case 0: {
+					cout << " (bez kompresji)\n";
+					break;
+				}
+				case 2: {
+					cout << " (CLZW2)\n";
+					break;
+				}
+				case 4: {
+					cout << " (?)\n";
+					break;
+				}
+				case 5: {
+					cout << " (JPG)\n";
+					break;
+				}
+				default: {
+					cout << " (format niestandardowy)\n";
+					break;
+				}
+			}
 		} else {
 			cerr << "Nieprawidlowy typ pliku!\n";
 			delete img_header;
@@ -180,97 +163,129 @@ struct IMGHEADER *read_img_header(ifstream &img_file)
     return img_header;
 }
 
-struct BITMAPHEADER *prepare_bmp_header(IMGHEADER *img_header)
+void read_img_data(ifstream &img_file, IMGHEADER *img_header, string &img_data_color, string &img_data_alpha)
+{
+	iostream::pos_type init_pos;
+	init_pos = img_file.tellg();
+	img_file.seekg(40, ios::beg);
+
+	string buffer;
+	buffer.reserve(img_header->ihSizeImage + img_header->ihSizeAlpha);
+	buffer.assign((std::istreambuf_iterator<char>(img_file)), (std::istreambuf_iterator<char>()));
+
+	img_data_color.reserve(img_header->ihSizeImage);
+	img_data_color.assign(buffer.begin(), buffer.begin() + img_header->ihSizeImage);
+
+	if (img_header->ihSizeAlpha != 0) {
+		img_data_alpha.reserve(img_header->ihSizeAlpha);
+		img_data_alpha.assign(buffer.begin() + img_header->ihSizeImage, buffer.begin() + img_header->ihSizeImage + img_header->ihSizeAlpha);
+	}
+
+	/*string img_data;
+	if (img_header->ihSizeAlpha == img_header->ihSizeImage / 2) {
+		img_data.reserve(img_header->ihSizeImage + img_header->ihSizeAlpha);
+		array<char, 2> buffer_color;
+		for (int i = 0; i < img_header->ihWidth * img_header->ihHeight; i++) {
+			img_file.read(buffer_color.data(), buffer_color.size());
+			img_data.replace(i * 3 + 1, buffer_color.size(), buffer_color.data());
+		}
+		array<char, 1> buffer_alpha;
+		for (int i = 0; i < img_header->ihWidth * img_header->ihHeight; i++) {
+			img_file.read(buffer_alpha.data(), buffer_alpha.size());
+			img_data.replace(i * 3, buffer_alpha.size(), buffer_alpha.data());
+		}
+	} else {
+		if (img_header->ihSizeAlpha != 0) {
+			cerr << "Nieznany format kanalu alpha\n";
+		}
+		img_data.reserve(img_header->ihSizeImage);
+		img_data.assign((std::istreambuf_iterator<char>(img_file)), (std::istreambuf_iterator<char>()));
+	}*/
+
+    img_file.seekg(init_pos);
+}
+
+struct BITMAPHEADER *prepare_bmp_header(IMGHEADER *img_header, const string &img_data_color, const string &img_data_alpha)
 {
     BITMAPHEADER *bmp_header = new BITMAPHEADER;
 
     bmp_header->bf.bfType = 0x4D42;
     bmp_header->bf.bfReserved1 = 0;
     bmp_header->bf.bfReserved2 = 0;
-    bmp_header->bf.bfOffBits = sizeof(BITMAPFILEHEADER) - 2 + sizeof(BITMAPV4HEADER);
+    bmp_header->bf.bfOffBits = sizeof(BITMAPFILEHEADER) + sizeof(BITMAPV5HEADER);
 
-    bmp_header->bV4.bV4Size = sizeof(BITMAPV4HEADER);
-    bmp_header->bV4.bV4Width = img_header->ihWidth;
-    bmp_header->bV4.bV4Height = img_header->ihHeight;
-    bmp_header->bV4.bV4Planes = 1;
-    bmp_header->bV4.bV4BitCount = img_header->ihBitCount;
-    bmp_header->bV4.bV4RedMask = 0;
-    bmp_header->bV4.bV4GreenMask = 0;
-    bmp_header->bV4.bV4BlueMask = 0;
-    switch (img_header->ihCompresion) {
-        case 0: {
-            cout << "Wykryto obraz bez kompresji!\n";
-            break;
-        }
-        case 2: {
-            cout << "Wykryto kompresje CLZW2!\n";
-            break;
-        }
-        case 4: {
-            cout << "Format nr 4 ;-;\n";
-			break;
-        }
-        case 5: {
-            cout << "To JPG, a nie BMP. Zapomnij, co widziales.\n";
-            break;
-        }
-        default: {
-            cout << "Niestandardowy format pliku .img!\n";
-            break;
-        }
-    }
-	bmp_header->bV4.bV4Compression = 3; //BI_BITFIELDS
-    bmp_header->bV4.bV4Height *= -1;
-    bmp_header->bV4.bV4AlphaMask = 0;
-    bmp_header->bV4.bV4RedMask = 0xF800;
-    bmp_header->bV4.bV4GreenMask = 0x7E0;
-    bmp_header->bV4.bV4BlueMask = 0x1F;
+    bmp_header->bV5.bV5Size = sizeof(BITMAPV5HEADER);
+    bmp_header->bV5.bV5Width = img_header->ihWidth;
+    bmp_header->bV5.bV5Height = img_header->ihHeight;
+    bmp_header->bV5.bV5Planes = 1;
+    bmp_header->bV5.bV5BitCount = 16;
+    
+	bmp_header->bV5.bV5Compression = BI_BITFIELDS;
+    bmp_header->bV5.bV5Height *= -1;
+    bmp_header->bV5.bV5AlphaMask = 0;
+    bmp_header->bV5.bV5RedMask =   0xF800;
+    bmp_header->bV5.bV5GreenMask = 0x07E0;
+    bmp_header->bV5.bV5BlueMask =  0x001F;
 
-    bmp_header->bV4.bV4SizeImage = img_header->ihSizeImage;
-    bmp_header->bV4.bV4XPelsPerMeter = 2835;
-    bmp_header->bV4.bV4YPelsPerMeter = 2835;
-    bmp_header->bV4.bV4ClrUsed = 0;
-    bmp_header->bV4.bV4ClrImportant = 0;
-    bmp_header->bV4.bV4CSType = 0x73524742; //sRGB
-    bmp_header->bV4.RedX = 0;
-    bmp_header->bV4.RedY = 0;
-    bmp_header->bV4.RedZ = 0;
-    bmp_header->bV4.GreenX = 0;
-    bmp_header->bV4.GreenY = 0;
-    bmp_header->bV4.GreenZ = 0;
-    bmp_header->bV4.BlueX = 0;
-    bmp_header->bV4.BlueY = 0;
-    bmp_header->bV4.BlueZ = 0;
-    bmp_header->bV4.bV4GammaRed = 0;
-    bmp_header->bV4.bV4GammaGreen = 0;
-    bmp_header->bV4.bV4GammaBlue = 0;
+    //bmp_header->bV5.bV5SizeImage = img_data_color.size() + img_data_alpha.size();
+	//if (img_header->ihSizeAlpha > 0) {
+		//if (img_data_alpha.size() / img_header->ihWidth / img_header->ihHeight == 1) {
+			//bmp_header->bV5.bV5BitCount = 32;
+			//bmp_header->bV5.bV5Compression = BI_RGB;
+			/*bmp_header->bV5.bV5RedMask =   0x001F0000;
+			bmp_header->bV5.bV5GreenMask = 0x00001F00;
+			bmp_header->bV5.bV5BlueMask =  0x0000001F;
+			bmp_header->bV5.bV5AlphaMask = 0xFF000000;*/
+		//} else {
+			bmp_header->bV5.bV5SizeImage = img_data_color.size();
+			//cerr << "Nieznany format kanalu alpha!\n";
+		//}
+	//}
+    bmp_header->bV5.bV5XPelsPerMeter = 2835;
+    bmp_header->bV5.bV5YPelsPerMeter = 2835;
+    bmp_header->bV5.bV5ClrUsed = 0;
+    bmp_header->bV5.bV5ClrImportant = 0;
+    bmp_header->bV5.bV5CSType = LCS_sRGB;
+    bmp_header->bV5.bV5Endpoints = tagICEXYZTRIPLE();
+    bmp_header->bV5.bV5GammaRed = 0;
+    bmp_header->bV5.bV5GammaGreen = 0;
+    bmp_header->bV5.bV5GammaBlue = 0;
+    bmp_header->bV5.bV5Intent = 0;
+    bmp_header->bV5.bV5ProfileData = 0;
+    bmp_header->bV5.bV5ProfileSize = 0;
+    bmp_header->bV5.bV5Reserved = 0;
 
-    bmp_header->bf.bfSize = bmp_header->bf.bfOffBits + bmp_header->bV4.bV4SizeImage;
-	cout << "Rozmiar pliku wyjsciowego: " << (unsigned)bmp_header->bf.bfSize << '\n';
+    bmp_header->bf.bfSize = bmp_header->bf.bfOffBits + bmp_header->bV5.bV5SizeImage;
+	cout << "Rozmiar pliku wyjsciowego w bajtach: " << (unsigned)bmp_header->bf.bfSize;
+	cout << " (w tym naglowek: " << bmp_header->bf.bfOffBits << ")\n";
 
     return bmp_header;
 }
 
-void decompress_bmp(string &buffer, ifstream &img_file, IMGHEADER *img_header, BITMAPHEADER *bmp_header)
+void decompress_img(string &img_data_color, string &img_data_alpha)
 {
-	iostream::pos_type init_pos = img_file.tellg();
-    img_file.seekg(40, ios::beg);
+	char *buffer;
+	CLZWCompression2 *lzw;
+	int size;
 
-	char *in_buffer = new char[img_header->ihSizeImage];
-	img_file.read(in_buffer, img_header->ihSizeImage);
-	CLZWCompression2 lzw(in_buffer, img_header->ihSizeImage);
-	char *out_buffer = lzw.decompress();
-	bmp_header->bV4.bV4SizeImage = reinterpret_cast<int *>(in_buffer)[0];
-    bmp_header->bf.bfSize = bmp_header->bf.bfOffBits + bmp_header->bV4.bV4SizeImage;
-	cout << "Rozmiar pliku wyjsciowego po dekompresji: " << (unsigned)bmp_header->bf.bfSize << '\n';
-	buffer.reserve(bmp_header->bV4.bV4SizeImage);
-	buffer.assign(out_buffer, bmp_header->bV4.bV4SizeImage);
-	delete[] in_buffer;
+	lzw = new CLZWCompression2((char *)(img_data_color.c_str()), img_data_color.size());
+	buffer = lzw->decompress();
+	size = reinterpret_cast<int *>((char *)(img_data_color.c_str()))[0];
+	img_data_color.reserve(size);
+	img_data_color.assign(buffer, size);
+	delete lzw;
 
-    img_file.seekg(init_pos);
+	if (img_data_alpha.size() > 0) {
+		lzw = new CLZWCompression2((char *)(img_data_alpha.c_str()), img_data_alpha.size());
+		buffer = lzw->decompress();
+		size = reinterpret_cast<int *>((char *)(img_data_alpha.c_str()))[0];
+		img_data_alpha.reserve(size);
+		img_data_alpha.assign(buffer, size);
+		delete lzw;
+	}
 }
 
-void write_bmp(ofstream &bmp_file, BITMAPHEADER *bmp_header, ifstream &img_file)
+/*void write_bmp(ofstream &bmp_file, BITMAPHEADER *bmp_header, ifstream &img_file)
 {
     iostream::pos_type init_pos = img_file.tellg();
 	img_file.seekg(40, ios::beg);
@@ -284,27 +299,32 @@ void write_bmp(ofstream &bmp_file, BITMAPHEADER *bmp_header, ifstream &img_file)
     }
 
     img_file.seekg(init_pos);
+}*/
+
+void write_bmp(ofstream &bmp_file, IMGHEADER *img_header, const string &img_data_color, const string &img_data_alpha)
+{
+	BITMAPHEADER *bmp_header = prepare_bmp_header(img_header, img_data_color, img_data_alpha);
+	bmp_file.write((char *)(bmp_header), sizeof(BITMAPHEADER));
+	/*if (bmp_header->bV5.bV5BitCount == 32) {
+		char buffer[4];
+		buffer[3] = 0;
+		short word;
+		for (int i = 0; i < img_header->ihWidth * img_header->ihHeight; i++) {
+			//bmp_file.write(img_data_alpha.c_str() + i, 1);
+			word = reinterpret_cast<short>(img_data_color.c_str() + i * 2);
+			buffer[2] = (word & 0x001F);
+			buffer[1] = ((word & 0x07E0) >> 5);
+			buffer[0] = ((word & 0xF800) >> 11);
+			bmp_file.write(buffer, 4);
+		}
+	} else {*/
+		bmp_file.write(img_data_color.c_str(), img_data_color.size());
+	//}
 }
 
-void write_bmp(ofstream &bmp_file, BITMAPHEADER *bmp_header, string &data_buffer)
+void write_jpg(ofstream &jpg_file, const string &img_data_color)
 {
-	bmp_file.write((char *)(&bmp_header->bf.bfType), sizeof(BITMAPFILEHEADER) - 2);
-	bmp_file.write((char *)(&bmp_header->bV4), sizeof(BITMAPV4HEADER));
-    bmp_file.write(data_buffer.c_str(), data_buffer.size());
-}
-
-void write_jpg(ofstream &jpg_file, ifstream &img_file)
-{
-	iostream::pos_type init_pos = img_file.tellg();
-	img_file.seekg(40, ios::beg);
-
-    char buffer[BUFF_SIZE];
-    while (!img_file.eof()) {
-		img_file.read(buffer, BUFF_SIZE);
-		jpg_file.write(buffer, img_file.gcount());
-    }
-
-    img_file.seekg(init_pos);
+	jpg_file.write(img_data_color.c_str(), img_data_color.size());
 }
 
 int main(int argc, char **argv)
@@ -315,63 +335,57 @@ int main(int argc, char **argv)
             if (in_file.good()) {
                 IMGHEADER *img_header = read_img_header(in_file);
                 if (img_header != nullptr) {
-                    BITMAPHEADER *bmp_header;
-
                     cout << "Wczytano naglowek!\n";
                     cout << "Rozmiar obrazu: " << img_header->ihWidth << " x " << abs(img_header->ihHeight) << " px\n";
-					
-					string out_filename = argv[arg_iter];
-					if (img_header->ihCompresion != 5) {
-						bmp_header = prepare_bmp_header(img_header);
-						out_filename += string(".bmp");
-					} else {
-						out_filename += string(".jpg");
-					}
-					ofstream out_file(out_filename, ios::out | ios::binary);
 
-					if (out_file.good()) {
-						switch (img_header->ihCompresion) {
-							case 4: {
-								//?
-							}
-							case 0: {
-								write_bmp(out_file, bmp_header, in_file);
-								break;
-							}
-							case 2: {
-								//CLZW2
-								string buffer;
-								decompress_bmp(buffer, in_file, img_header, bmp_header);
-								write_bmp(out_file, bmp_header, buffer);
-								break;
-							}
-							case 5: {
-								write_jpg(out_file, in_file);
-								break;
-							}
-							default: {
-								cout << "Niestandardowy format pliku .img!\n";
-								break;
-							}
+					string img_data_color, img_data_alpha;
+					read_img_data(in_file, img_header, img_data_color, img_data_alpha);
+					if (img_data_color.size() != 0) {
+						cout << "Wczytano dane obrazu!\n";
+						cout << "Rozmiar w bajtach: " << img_data_color.size() + img_data_alpha.size();
+						if (img_data_alpha.size() > 0) {
+							cout << " (w tym alpha: " << img_data_alpha.size() << ')';
 						}
- 
-						if (img_header->ihCompresion != 5) {
-							cout << "Przekonwertowano do formatu BMP!\n";
+						cout << '\n';
+
+						string out_filename = argv[arg_iter];
+						if (img_header->ihCompression != 5) {
+							out_filename += string(".bmp");
 						} else {
-							cout << "Przekonwertowano do formatu JPG!\n";
+							out_filename += string(".jpg");
+						}
+						ofstream out_file(out_filename, ios::out | ios::binary);
+
+						if (out_file.good()) {
+							if (img_header->ihCompression != 5) {
+								if (img_header->ihCompression == 2) {
+									decompress_img(img_data_color, img_data_alpha);
+								}
+								cout << "Zdekompresowano dane obrazu!\n";
+								cout << "Nowy rozmiar w bajtach: " << img_data_color.size() + img_data_alpha.size();
+								if (img_data_alpha.size() > 0) {
+									cout << " (w tym alpha: " << img_data_alpha.size() << ')';
+								}
+								cout << '\n';
+								write_bmp(out_file, img_header, img_data_color, img_data_alpha);
+								cout << "Przekonwertowano do formatu BMP!\n";
+							} else {
+								write_jpg(out_file, img_data_color);
+								cout << "Przekonwertowano do formatu JPG!\n";
+							}
+							out_file.close();
+						} else {
+							cerr << "Blad pliku: " << strerror(errno) << " dla pliku wyjscia " << out_filename << '\n';
 						}
 					} else {
-						cerr << "File error: " << strerror(errno) << " for output file " << out_filename << '\n';
-					}
-
-					if (img_header->ihCompresion != 5) {
-						delete bmp_header;
+						cerr << "Blad wczytywania danych obrazu!\n";
 					}
                     delete img_header;
-					out_file.close();
-                }
+                } else {
+					cerr << "Blad wczytywania naglowka pliku!\n";
+				}
             } else {
-                cerr << "File error: " << strerror(errno) << " for input file " << argv[arg_iter] << '\n';
+                cerr << "Blad pliku: " << strerror(errno) << " dla pliku wejscia " << argv[arg_iter] << '\n';
             }
 			in_file.close();
 			cout << '\n';

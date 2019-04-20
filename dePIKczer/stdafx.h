@@ -17,3 +17,7 @@
 #include <iomanip>
 #include <limits>
 #include <algorithm>
+#include <array>
+#include <vector>
+
+#include <Windows.h>
