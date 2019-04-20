@@ -197,20 +197,22 @@ struct BITMAPHEADER *prepare_bmp_header(IMGHEADER *img_header, const vector<char
 
     bmp_header->bV5.bV5Size = sizeof(BITMAPV5HEADER);
     bmp_header->bV5.bV5Width = img_header->ihWidth;
-    bmp_header->bV5.bV5Height = img_header->ihHeight;
+    bmp_header->bV5.bV5Height = img_header->ihHeight * -1; //-1 for upside-down image
     bmp_header->bV5.bV5Planes = 1;
     bmp_header->bV5.bV5BitCount = 16;
-    
 	bmp_header->bV5.bV5Compression = BI_BITFIELDS;
-    bmp_header->bV5.bV5Height *= -1;
-    bmp_header->bV5.bV5AlphaMask = 0;
+    bmp_header->bV5.bV5SizeImage = bmp_data.size();
+    bmp_header->bV5.bV5XPelsPerMeter = 2835;
+    bmp_header->bV5.bV5YPelsPerMeter = 2835;
+    bmp_header->bV5.bV5ClrUsed = 0;
+    bmp_header->bV5.bV5ClrImportant = 0;
 	switch (img_header->ihBitCount) {
-		case 15: {
-		}
+		case 15:
 		case 16: {
 			bmp_header->bV5.bV5RedMask =   0xF800;
 			bmp_header->bV5.bV5GreenMask = 0x07E0;
 			bmp_header->bV5.bV5BlueMask =  0x001F;
+			bmp_header->bV5.bV5AlphaMask = 0;
 			break;
 		}
 		default: {
@@ -219,25 +221,19 @@ struct BITMAPHEADER *prepare_bmp_header(IMGHEADER *img_header, const vector<char
 		}
 	}
 
-    bmp_header->bV5.bV5SizeImage = bmp_data.size();
-	/*if (img_header->ihSizeAlpha > 0) {
+	if (img_header->ihSizeAlpha > 0) {
 		bmp_header->bV5.bV5BitCount = 32;
-		bmp_header->bV5.bV5Compression = BI_BITFIELDS;
 		bmp_header->bV5.bV5RedMask =   0x000000FF;
 		bmp_header->bV5.bV5GreenMask = 0x0000FF00;
 		bmp_header->bV5.bV5BlueMask =  0x00FF0000;
 		bmp_header->bV5.bV5AlphaMask = 0xFF000000;
-	}*/
-    bmp_header->bV5.bV5XPelsPerMeter = 2835;
-    bmp_header->bV5.bV5YPelsPerMeter = 2835;
-    bmp_header->bV5.bV5ClrUsed = 0;
-    bmp_header->bV5.bV5ClrImportant = 0;
+	}
     bmp_header->bV5.bV5CSType = LCS_sRGB;
     bmp_header->bV5.bV5Endpoints = tagICEXYZTRIPLE();
     bmp_header->bV5.bV5GammaRed = 0;
     bmp_header->bV5.bV5GammaGreen = 0;
     bmp_header->bV5.bV5GammaBlue = 0;
-    bmp_header->bV5.bV5Intent = 0;
+    bmp_header->bV5.bV5Intent = LCS_GM_GRAPHICS;
     bmp_header->bV5.bV5ProfileData = 0;
     bmp_header->bV5.bV5ProfileSize = 0;
     bmp_header->bV5.bV5Reserved = 0;
@@ -274,49 +270,94 @@ void decompress_img(vector<char> &img_data_color, vector<char> &img_data_alpha)
 
 vector<char> align_bmp_data(IMGHEADER *img_header, const vector<char> &img_data_color, const vector<char> &img_data_alpha)
 {
-	if (img_header->ihBitCount == 16) {
-		//if (img_header->ihSizeAlpha == 0) {
-			if (img_header->ihWidth % 2 == 0) {
-				return vector<char>(0);
-			} else {
-				unsigned row_length = img_header->ihWidth * 2;
-				unsigned padding_length = 4 - row_length % 4;
-				unsigned padded_row_length = row_length + padding_length;
-				unsigned buffer_size = padded_row_length * img_header->ihHeight;
-				char padding[4] = {0, 0, 0, 0};
-				char *buffer = new char[buffer_size];
-				for (int i = 0; i < img_header->ihHeight; i++) {
-					copy(img_data_color.data() + i * row_length, img_data_color.data() + (i + 1) * row_length, buffer + i * padded_row_length);
-					copy(padding, padding + padding_length, buffer + i * padded_row_length + row_length);
-				}
-				return vector<char>(buffer, buffer + buffer_size);
+	vector<char> aligned_bmp_data(0);
+	char *buffer = (char *)(img_data_color.data());
+	unsigned buffer_size = img_data_color.size();
+	if (img_header->ihSizeAlpha == 0) {
+		if (img_header->ihBitCount == 15) {
+			buffer_size = img_data_color.size();
+			buffer = new char[buffer_size];
+			copy(img_data_color.begin(), img_data_color.end(), buffer);
+			#ifdef _DEBUG
+				clog << "[log] Skopiowano bufor danych obrazu!\n";
+			#endif
+			unsigned short green;
+			for (unsigned i = 0; i < buffer_size; i += 2) {
+				green = (((unsigned char)(buffer[i + 1]) & 0x3) << 3) | (((unsigned char)(buffer[i]) & 0xE0) >> 5);
+				green *= 63 / 31.;
+				buffer[i + 1] <<= 1;
+				buffer[i + 1] &= 0xF8;
+				buffer[i] &= 0x1F;
+				buffer[i + 1] |= (0x7 & (green >> 2));
+				buffer[i] |= (0xE0 & (green << 3));
 			}
-		/*} else {
-			if (img_data_color.size() / 2 == img_data_alpha.size()) {
-				;
-			} else {
-				throw runtime_error("Nieznany format alfy pliku!\n");;
-			}
-		}*/
-	} else if (img_header->ihBitCount == 15) {
-		vector<char> buffer(img_data_color);
-		clog << "1...\n";
-		unsigned short green;
-		for (int i = 0; i < buffer.size(); i += 2) {
-			green = (((unsigned char)(buffer[i + 1]) & 0x3) << 3) | (((unsigned char)(buffer[i]) & 0xE0) >> 5);
-			green *= 63 / 31.;
-			buffer[i + 1] <<= 1;
-			buffer[i + 1] &= 0xF8;
-			buffer[i] &= 0x1F;
-			buffer[i + 1] |= (0x7 & (green >> 2));
-			buffer[i] |= (0xE0 & (green << 3));
+			#ifdef _DEBUG
+				clog << "[log] Przetworzono bufor danych obrazu!\n";
+			#endif
+			//go to padding check
+		} else if (img_header->ihBitCount != 16) { //for 16bpp go straight to padding check
+			throw runtime_error("Nieznany format kolorow pliku!\n");
 		}
-		clog << "2...\n";
-		//return vector<char>(0);
-		return buffer;
 	} else {
-		throw runtime_error("Nieznany format kolorow pliku!\n");
+		if (img_data_color.size() / 2 == img_data_alpha.size()) {
+			unsigned pixel_count = img_header->ihWidth * img_header->ihHeight;
+			buffer_size = pixel_count * 4;
+			buffer = new char[buffer_size];
+			char pixel[4];
+			if (img_header->ihBitCount == 16) {
+				for (unsigned i = 0; i < pixel_count; i++) {
+					pixel[0] = 255 / 31. * ((img_data_color[i * 2 + 1] & 0xF8) >> 3); //red
+					pixel[1] = 255 / 63. * (((img_data_color[i * 2] & 0xE0) >> 5) | ((img_data_color[i * 2 + 1] & 0x07) << 3)); //green
+					pixel[2] = 255 / 31. * (img_data_color[i * 2] & 0x1F); //blue
+					pixel[3] = img_data_alpha[i]; //alpha
+					copy(pixel, pixel + 4, buffer + i * 4);
+				}
+			} else if (img_header->ihBitCount == 15) {
+				for (unsigned i = 0; i < pixel_count; i++) {
+					pixel[0] = 255 / 31. * ((img_data_color[i * 2 + 1] & 0x7C) >> 2); //red
+					pixel[1] = 255 / 31. * (((img_data_color[i * 2] & 0xE0) >> 5) | ((img_data_color[i * 2 + 1] & 0x03) << 3)); //green
+					pixel[2] = 255 / 31. * (img_data_color[i * 2] & 0x1F); //blue
+					pixel[3] = img_data_alpha[i]; //alpha
+					copy(pixel, pixel + 4, buffer + i * 4);
+				}
+			} else {
+				throw runtime_error("Nieznany format kolorow pliku!\n");
+			}
+		} else {
+			img_header->ihSizeAlpha = 0;
+			throw runtime_error("Nieznany format alfy pliku!\n");;
+		}
 	}
+
+	if (buffer_size / img_header->ihHeight % 4 > 0) {
+		unsigned row_length = buffer_size / img_header->ihHeight;
+		unsigned padding_length = 4 - row_length % 4;
+		unsigned padded_row_length = row_length + padding_length;
+		unsigned padded_buffer_size = padded_row_length * img_header->ihHeight;
+		char padding[4] = {0, 0, 0, 0};
+		char *padded_buffer = new char[padded_buffer_size];
+		for (int i = 0; i < img_header->ihHeight; i++) {
+			copy(buffer + i * row_length, buffer + (i + 1) * row_length, padded_buffer + i * padded_row_length);
+			copy(padding, padding + padding_length, padded_buffer + i * padded_row_length + row_length);
+		}
+		#ifdef _DEBUG
+			clog << "[log] Przetworzono bufor danych obrazu!\n";
+		#endif
+		aligned_bmp_data.reserve(padded_buffer_size);
+		aligned_bmp_data.assign(padded_buffer, padded_buffer + padded_buffer_size);
+		delete[] padded_buffer;
+	} else {
+		#ifdef _DEBUG
+			clog << "[log] Przetworzono bufor danych obrazu!\n";
+		#endif
+		aligned_bmp_data.reserve(buffer_size);
+		aligned_bmp_data.assign(buffer, buffer + buffer_size);
+	}
+
+	if (buffer != img_data_color.data()) {
+		delete[] buffer;
+	}
+	return aligned_bmp_data;
 }
 
 void write_bmp(ofstream &bmp_file, IMGHEADER *img_header, const vector<char> &bmp_data)
@@ -324,31 +365,6 @@ void write_bmp(ofstream &bmp_file, IMGHEADER *img_header, const vector<char> &bm
 	BITMAPHEADER *bmp_header = prepare_bmp_header(img_header, bmp_data);
 	bmp_file.write((char *)(bmp_header), sizeof(BITMAPHEADER));
 	bmp_file.write(bmp_data.data(), bmp_data.size());
-	/*if (bmp_header->bV5.bV5BitCount == 32) {
-		char buffer[4];
-		buffer[3] = 0;
-		short color_pixel;
-		for (int i = 0; i < img_header->ihWidth * img_header->ihHeight; i++) {
-			bmp_file.write(img_data_alpha.data() + i, 1);
-			color_pixel = reinterpret_cast<short>(img_data_color.data() + i * 2);
-			buffer[0] = 255 / 31. * (color_pixel & 0x001F);
-			buffer[1] = 255 / 64. * ((color_pixel & 0x07E0) >> 5);
-			buffer[2] = 255 / 31. * ((color_pixel & 0xF800) >> 11);
-			bmp_file.write(buffer, 4);
-		}
-	} else {
-		if (img_header->ihWidth * img_header->ihBitCount % 32 == 0) {
-			bmp_file.write(img_data_color.data(), img_data_color.size());
-		} else {//DWORD alignment
-			unsigned row_length = img_header->ihWidth * img_header->ihBitCount / 8;
-			unsigned padding_length = 4 - row_length % 4;
-			char padding[4] = {0, 0, 0, 0};
-			for (int i = 0; i < img_header->ihHeight; i++) {
-				bmp_file.write(img_data_color.data() + i * img_header->ihBitCount / 8, row_length);
-				bmp_file.write(padding, padding_length);
-			}
-		}
-	}*/
 }
 
 void write_jpg(ofstream &jpg_file, const vector<char> &img_data_color)
