@@ -22,3 +22,6 @@
 #include <exception>
 
 #include <Windows.h>
+
+#include <turbojpeg.h>
+#include <png.h>

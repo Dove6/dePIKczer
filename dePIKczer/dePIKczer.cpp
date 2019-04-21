@@ -227,6 +227,11 @@ struct BITMAPHEADER *prepare_bmp_header(IMGHEADER *img_header, const vector<char
 		bmp_header->bV5.bV5GreenMask = 0x0000FF00;
 		bmp_header->bV5.bV5BlueMask =  0x00FF0000;
 		bmp_header->bV5.bV5AlphaMask = 0xFF000000;
+	} else if (img_header->ihCompression == 5) {
+		bmp_header->bV5.bV5BitCount = 32;
+		bmp_header->bV5.bV5RedMask =   0x000000FF;
+		bmp_header->bV5.bV5GreenMask = 0x0000FF00;
+		bmp_header->bV5.bV5BlueMask =  0x00FF0000;
 	}
     bmp_header->bV5.bV5CSType = LCS_sRGB;
     bmp_header->bV5.bV5Endpoints = tagICEXYZTRIPLE();
@@ -251,12 +256,14 @@ void decompress_img(vector<char> &img_data_color, vector<char> &img_data_alpha)
 	CLZWCompression2 *lzw;
 	int size;
 
-	lzw = new CLZWCompression2(img_data_color.data(), img_data_color.size());
-	buffer = lzw->decompress();
-	size = reinterpret_cast<int *>(img_data_color.data())[0];
-	img_data_color.reserve(size);
-	img_data_color.assign(buffer, buffer + size);
-	delete lzw;
+	if (img_data_color.size() > 0) {
+		lzw = new CLZWCompression2(img_data_color.data(), img_data_color.size());
+		buffer = lzw->decompress();
+		size = reinterpret_cast<int *>(img_data_color.data())[0];
+		img_data_color.reserve(size);
+		img_data_color.assign(buffer, buffer + size);
+		delete lzw;
+	}
 
 	if (img_data_alpha.size() > 0) {
 		lzw = new CLZWCompression2(img_data_alpha.data(), img_data_alpha.size());
@@ -265,6 +272,25 @@ void decompress_img(vector<char> &img_data_color, vector<char> &img_data_alpha)
 		img_data_alpha.reserve(size);
 		img_data_alpha.assign(buffer, buffer + size);
 		delete lzw;
+	}
+}
+
+void decompress_jpg(vector<char> &img_data_color, IMGHEADER *img_header)
+{
+	tjhandle decompressor = tjInitDecompress();
+	if (decompressor != nullptr) {
+		unsigned buffer_size = img_header->ihWidth * img_header->ihHeight * 4;
+		char *buffer = new char[buffer_size];
+		if (!tjDecompress2(decompressor, (const unsigned char *)(img_data_color.data()), img_data_color.size(), (unsigned char *)(buffer),
+						  img_header->ihWidth, img_header->ihWidth * tjPixelSize[TJPF_RGBA], img_header->ihHeight, TJPF_RGBA, 0)) {
+			img_data_color.assign(buffer, buffer + buffer_size);
+			tjDestroy(decompressor);
+		} else {
+			tjDestroy(decompressor);
+			throw runtime_error(tjGetErrorStr2(decompressor));
+		}
+	} else {
+		throw runtime_error(tjGetErrorStr2(decompressor));
 	}
 }
 
@@ -295,12 +321,12 @@ vector<char> align_bmp_data(IMGHEADER *img_header, const vector<char> &img_data_
 				clog << "[log] Przetworzono bufor danych obrazu!\n";
 			#endif
 			//go to padding check
-		} else if (img_header->ihBitCount != 16) { //for 16bpp go straight to padding check
+		} else if (img_header->ihBitCount != 16 && img_header->ihBitCount != 5) { //for 16bpp go straight to padding check
 			throw runtime_error("Nieznany format kolorow pliku!\n");
 		}
 	} else {
+		unsigned pixel_count = img_header->ihWidth * img_header->ihHeight;
 		if (img_data_color.size() / 2 == img_data_alpha.size()) {
-			unsigned pixel_count = img_header->ihWidth * img_header->ihHeight;
 			buffer_size = pixel_count * 4;
 			buffer = new char[buffer_size];
 			char pixel[4];
@@ -322,6 +348,10 @@ vector<char> align_bmp_data(IMGHEADER *img_header, const vector<char> &img_data_
 				}
 			} else {
 				throw runtime_error("Nieznany format kolorow pliku!\n");
+			}
+		} else if (img_data_color.size() / 4 == img_data_alpha.size() && img_header->ihCompression == 5) {
+			for (int i = 0; i < pixel_count; i++) {
+				buffer[i * 4 + 3] = img_data_alpha[i];
 			}
 		} else {
 			img_header->ihSizeAlpha = 0;
@@ -367,9 +397,29 @@ void write_bmp(ofstream &bmp_file, IMGHEADER *img_header, const vector<char> &bm
 	bmp_file.write(bmp_data.data(), bmp_data.size());
 }
 
-void write_jpg(ofstream &jpg_file, const vector<char> &img_data_color)
+void write_jpg(ofstream &jpg_file, IMGHEADER *img_header, const vector<char> &img_data_color)
 {
-	jpg_file.write(img_data_color.data(), img_data_color.size());
+	tjhandle decompressor = tjInitDecompress();
+	if (decompressor != nullptr) {
+		unsigned buffer_size = img_header->ihWidth * img_header->ihHeight * 4;
+		char *buffer = new char[buffer_size];
+		if (!tjDecompress2(decompressor, (const unsigned char *)(img_data_color.data()), img_data_color.size(), (unsigned char *)(buffer),
+						  img_header->ihWidth, img_header->ihWidth * tjPixelSize[TJPF_RGBA], img_header->ihHeight, TJPF_RGBA, 0)) {
+			try {
+				write_bmp(jpg_file, img_header, vector<char>(buffer, buffer + buffer_size));
+			} catch (exception &e) {
+				tjDestroy(decompressor);
+				throw e;
+			}
+			tjDestroy(decompressor);
+		} else {
+			tjDestroy(decompressor);
+			throw runtime_error(tjGetErrorStr2(decompressor));
+		}
+		//jpg_file.write(img_data_color.data(), img_data_color.size());
+	} else {
+		throw runtime_error(tjGetErrorStr2(decompressor));
+	}
 }
 
 int main(int argc, char **argv)
@@ -393,43 +443,40 @@ int main(int argc, char **argv)
 						}
 						cout << '\n';
 
-						string out_filename = argv[arg_iter];
-						if (img_header->ihCompression != 5) {
-							out_filename += string(".bmp");
-						} else {
-							out_filename += string(".jpg");
-						}
+						string out_filename = string(argv[arg_iter]) + string(".bmp");
 						ofstream out_file(out_filename, ios::out | ios::binary);
 
 						if (out_file.good()) {
-							if (img_header->ihCompression != 5) {
-								if (img_header->ihCompression == 2) {
+							switch (img_header->ihCompression) {
+								case 2: {
 									decompress_img(img_data_color, img_data_alpha);
+									break;
 								}
-								cout << "Zdekompresowano dane obrazu!\n";
-								cout << "Nowy rozmiar w bajtach: " << img_data_color.size() + img_data_alpha.size();
-								if (img_data_alpha.size() > 0) {
-									cout << " (w tym alpha: " << img_data_alpha.size() << ')';
+								case 5: {
+									decompress_jpg(img_data_color, img_header);
+									decompress_img(vector<char>(0), img_data_alpha);
+									break;
 								}
-								cout << '\n';
-								vector<char> bmp_data;
-								try {
-									bmp_data = align_bmp_data(img_header, img_data_color, img_data_alpha);
-									cout << "Przekonwertowano do formatu BMP!\n";
-									if (bmp_data.size() > 0) {
-										write_bmp(out_file, img_header, bmp_data);
-									} else {
-										write_bmp(out_file, img_header, img_data_color);
-									}
-									cout << "Zapisano plik!\n";
-								} catch (exception &e) {
-									cerr << e.what();
-									cerr << "Nie udalo sie dokonac kompresji!\n";
+							}
+							cout << "Zdekompresowano dane obrazu!\n";
+							cout << "Nowy rozmiar w bajtach: " << img_data_color.size() + img_data_alpha.size();
+							if (img_data_alpha.size() > 0) {
+								cout << " (w tym alpha: " << img_data_alpha.size() << ')';
+							}
+							cout << '\n';
+							vector<char> bmp_data;
+							try {
+								bmp_data = align_bmp_data(img_header, img_data_color, img_data_alpha);
+								cout << "Przekonwertowano do formatu BMP!\n";
+								if (bmp_data.size() > 0) {
+									write_bmp(out_file, img_header, bmp_data);
+								} else {
+									write_bmp(out_file, img_header, img_data_color);
 								}
-							} else {
-								write_jpg(out_file, img_data_color);
-								cout << "Przekonwertowano do formatu JPG!\n";
 								cout << "Zapisano plik!\n";
+							} catch (exception &e) {
+								cerr << e.what();
+								cerr << "Nie udalo sie dokonac kompresji!\n";
 							}
 							out_file.close();
 						} else {
