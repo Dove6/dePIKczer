@@ -58,3 +58,4 @@ Release
 !Release/Piklib8.dll
 ipch
 *.sdf
+/recursive_decompress.bat

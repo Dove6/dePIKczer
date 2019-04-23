@@ -41,39 +41,41 @@ class help_issued : public exception {
 
 class console_writer {
 public:
-	static console_writer &get_instance(int argc)
+	static console_writer &get_instance(int argc, bool forced_silence = false)
 	{
-		static console_writer instance(argc);
+		static console_writer instance(argc, forced_silence);
 		return instance;
 	}
 private:
 	bool attached,
 		 allocated;
-	console_writer(int argc)
+	console_writer(int argc, bool forced_silence)
 	: attached(false), allocated(false)
 	{
-		attached = AttachConsole(ATTACH_PARENT_PROCESS);
-		if (!attached && argc <= 1) {
-			attached = AllocConsole();
-			allocated = attached;
-		}
-		if (attached) {
-			HANDLE console_output = GetStdHandle(STD_OUTPUT_HANDLE);
-			int system_output = _open_osfhandle(intptr_t(console_output), 0x4000);
-			FILE *c_output_handle = _fdopen(system_output, "w");
-			freopen_s(&c_output_handle, "CONOUT$", "w", stdout);
+		if (!forced_silence) {
+			attached = AttachConsole(ATTACH_PARENT_PROCESS);
+			if (!attached && argc <= 1) {
+				attached = AllocConsole();
+				allocated = attached;
+			}
+			if (attached) {
+				HANDLE console_output = GetStdHandle(STD_OUTPUT_HANDLE);
+				int system_output = _open_osfhandle(intptr_t(console_output), 0x4000);
+				FILE *c_output_handle = _fdopen(system_output, "w");
+				freopen_s(&c_output_handle, "CONOUT$", "w", stdout);
 			
-			HANDLE console_error = GetStdHandle(STD_ERROR_HANDLE);
-			int system_error = _open_osfhandle(intptr_t(console_error), 0x4000);
-			FILE *c_error_handle = _fdopen(system_error, "w");
-			freopen_s(&c_error_handle, "CONOUT$", "w", stderr);
+				HANDLE console_error = GetStdHandle(STD_ERROR_HANDLE);
+				int system_error = _open_osfhandle(intptr_t(console_error), 0x4000);
+				FILE *c_error_handle = _fdopen(system_error, "w");
+				freopen_s(&c_error_handle, "CONOUT$", "w", stderr);
 
-			HANDLE console_input = GetStdHandle(STD_INPUT_HANDLE);
-			int system_input = _open_osfhandle(intptr_t(console_input), 0x4000);
-			FILE *c_input_handle = _fdopen(system_input, "r");
-			freopen_s(&c_input_handle, "CONIN$", "r", stdin);
+				HANDLE console_input = GetStdHandle(STD_INPUT_HANDLE);
+				int system_input = _open_osfhandle(intptr_t(console_input), 0x4000);
+				FILE *c_input_handle = _fdopen(system_input, "r");
+				freopen_s(&c_input_handle, "CONIN$", "r", stdin);
 
-			cout << '\n';
+				cout << '\n';
+			}
 		}
 	}
 	console_writer(const console_writer &c) {}
@@ -123,7 +125,8 @@ struct cli_options {
 	enum output_format format;
 	bool decompress,
 		 custom_dir,
-		 parsed_without_error;
+		 parsed_without_error,
+		 silence;
 	string dir;
 };
 
@@ -267,6 +270,11 @@ void parse_cli_options(const int argc, char **argv, cli_options &options, int &a
 						throw out_of_range("Brak drugiej czesci opcji!\n");
 					}
 				}
+			} else if ((arg.size() == 2 && arg[1] == 's') ||
+				(arg.find("silent") != string::npos &&
+				(arg.size() == 7 || (arg.size() == 8 && arg[1] == '-')))) {
+				//-s, /s, -silent, /silent, --silent
+				options.silence = true;
 			} else {
 				throw invalid_argument("Nierozpoznana opcja!\n");
 			}
@@ -321,7 +329,6 @@ void compose_out_filename(string &out_filename, char **argv, const int arg_iter,
 		}
 	}
 	//number part
-	result.append(to_string(_Longlong(arg_iter)));
 	out_filename.append(result);
 	string core_filename = out_filename;
 	string extension;
@@ -812,33 +819,45 @@ void print_help()
 			"  o [sciezka],        uzycie podanego katalogu jako zbiorczego katalogu\n"
 			"  out-dir=[sciezka]     wyjsciowego dla przetworzonych plikow\n"
 			"                        (domyslnie przetworzone pliki zapisywane sa w tym\n"
-			"                        samym katalogu, co pliki wejsciowe)\n";
+			"                        samym katalogu, co pliki wejsciowe)\n"
+			"  s,                  wymuszenie wyciszenia programu (braku konsoli)\n"
+			"  silent\n";
 }
 
 int main(int argc, char **argv)
 {
-	console_writer::get_instance(argc);
 	push_back_characteristic_names();
-    if (argc > 1) {
-		int arg_iter = 1;
+	int starting_argument = 1;
+	if (argc > 0) {
+		if (argv[0][0] == '-' || argv[0][0] == '/') {
+			starting_argument--;
+		}
+	}
+    if (argc > starting_argument) {
+		int arg_iter = starting_argument;
 		cli_options options;
 		options.decompress = true;
 		options.format = PNG;
 		options.custom_dir = false;
+		options.silence = false;
 		options.parsed_without_error = false;
 		try {
 			parse_cli_options(argc, argv, options, arg_iter);
 			options.parsed_without_error = true;
 		} catch (invalid_argument &e) {
+			console_writer::get_instance(argc);
 			cerr << e.what();
 			cerr << "\tprzy argumencie " << argv[arg_iter] << '\n';
 		} catch (out_of_range &e) {
+			console_writer::get_instance(argc);
 			cerr << e.what();
 			cerr << "\tdla argumentu " << argv[arg_iter] << '\n';
 		} catch (help_issued &e) {
+			console_writer::get_instance(argc);
 			print_help();
 		}
 		if (options.parsed_without_error) {
+			console_writer::get_instance(argc, options.silence);
 			for (; arg_iter < argc; arg_iter++) {
 				ifstream in_file(argv[arg_iter], ios::in | ios::binary);
 				if (in_file.good()) {
@@ -961,6 +980,7 @@ int main(int argc, char **argv)
 			}
 		}
     } else {
+		console_writer::get_instance(argc);
 		cerr << "Blad: Nie podano plikow!\n\n";
         print_help();
     }
