@@ -22,6 +22,8 @@
 #include <exception>
 
 #include <Windows.h>
+#include <io.h>
 
 #include <turbojpeg.h>
-#include <png.h>
+
+#include "miniz.h"
