@@ -1,0 +1,7 @@
+﻿○ stderr zawsze
+○ metadane
+○ wyjątki
+○ dane autorskie (copyright, comment, software)
+○ licencja
+
+×
