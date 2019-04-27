@@ -1,4 +1,4 @@
-﻿○ stderr zawsze
+﻿○ stderr zawsze - rozdzielenie od cout
 ○ metadane
 ○ wyjątki
 ○ dane autorskie (copyright, comment, software)
