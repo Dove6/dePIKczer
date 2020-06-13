@@ -1,40 +1,11 @@
 // dePIKczer.cpp : Defines the entry point for the console application.
 //
 
-#include "stdafx.h"
+#include "../include/stdafx.h"
 
 #define BUFF_SIZE 200
 
 using namespace std;
-
-class CLZWCompression {
-	unsigned long __compress(unsigned char *, unsigned char *, unsigned long);
-	void __decompress(char *, char *, long);
-public:
-	int *pre_spacing[4];
-	int input_size;
-	char *input_ptr;
-	int *post_spacing[2];
-
-	char *compress(int &);
-	char *decompress(int);
-	
-	CLZWCompression(char *, int);
-};
-
-class CLZWCompression2 {
-
-public:
-	int *pre_spacing[4];
-	int input_size;
-	char *input_ptr;
-	int *post_spacing[2];
-
-	char *compress(int &);
-	char *decompress(void);
-	
-	CLZWCompression2(char *, int);
-};
 
 class compression_failure : public runtime_error {
 public:
@@ -173,8 +144,6 @@ private:
 			cout << '\n';
 		}
 	}
-	console_writer(const console_writer &c) {}
-	console_writer &operator=(const console_writer &c) {}
 	~console_writer()
 	{
 		if (attached) {
@@ -223,18 +192,18 @@ public:
 };
 
 struct IMGHEADER {
-    mutable			 char ihType[4];
-    mutable unsigned int  ihWidth;
-    mutable unsigned int  ihHeight;
-    mutable unsigned int  ihBitCount;
-    mutable unsigned int  ihSizeImage;
-    mutable			 int  ihNothing;
-    mutable			 int  ihCompression;
-    mutable unsigned int  ihSizeAlpha;
-    mutable			 int  ihPosX;
-    mutable			 int  ihPosY;
+    		 char ihType[4];
+    unsigned int  ihWidth;
+    unsigned int  ihHeight;
+    unsigned int  ihBitCount;
+    unsigned int  ihSizeImage;
+    		 int  ihNothing;
+    		 int  ihCompression;
+    unsigned int  ihSizeAlpha;
+    		 int  ihPosX;
+    		 int  ihPosY;
 
-	IMGHEADER operator=(const IMGHEADER &ih) const
+	IMGHEADER operator=(const IMGHEADER &ih)
 	{
 		copy(ih.ihType, ih.ihType + 4, ihType);
 		ihWidth = ih.ihWidth;
@@ -579,7 +548,7 @@ string compose_out_filename(char **argv, const int starting_argument, const int 
 	unsigned i;
 	for (i = 2; existance_test.good() && i <= 1000; i++) {
 		existance_test.close();
-		result = core_filename + string("_") + to_string(_ULonglong(i)) + extension;
+		result = core_filename + string("_") + to_string((unsigned long long)(i)) + extension;
 		existance_test.open(result, ios::in);
 	}
 	if (i == 1000) {
@@ -629,14 +598,14 @@ void read_img_data(ifstream &img_file, IMGHEADER &img_header, vector<char> &img_
 	iostream::pos_type init_pos;
 	init_pos = img_file.tellg();
 	img_file.seekg(40, ios::beg);
-	
+
 	char *buffer;
 	buffer = new char[img_header.ihSizeImage];
 	try {
 		img_file.read(buffer, img_header.ihSizeImage);
 	} catch (ifstream::failure &) {
         img_header.ihSizeAlpha = 0;
-		for (streamsize i = img_file.gcount(); i < img_header.ihSizeImage; i++) {
+		for (streamsize i = img_file.gcount(); i < int(img_header.ihSizeImage); i++) {
 			buffer[i] = 0;
 		}
 		img_data_color.assign(buffer, buffer + img_header.ihSizeImage);
@@ -745,25 +714,20 @@ struct BITMAPHEADER *prepare_bmp_header(const IMGHEADER &img_header, const vecto
 void decompress_img(vector<char> &img_data_color, vector<char> &img_data_alpha)
 {
 	char *buffer;
-	CLZWCompression2 *lzw;
 	int size;
 
 	if (img_data_color.size() > 0) {
-		lzw = new CLZWCompression2(img_data_color.data(), img_data_color.size());
-		buffer = lzw->decompress();
+		buffer = piklib_CLZWCompression2_decompress(img_data_color.data(), img_data_color.size());
 		size = reinterpret_cast<int *>(img_data_color.data())[0];
 		img_data_color.reserve(size);
 		img_data_color.assign(buffer, buffer + size);
-		delete lzw;
 	}
 
 	if (img_data_alpha.size() > 0) {
-		lzw = new CLZWCompression2(img_data_alpha.data(), img_data_alpha.size());
-		buffer = lzw->decompress();
+		buffer = piklib_CLZWCompression2_decompress(img_data_alpha.data(), img_data_alpha.size());
 		size = reinterpret_cast<int *>(img_data_alpha.data())[0];
 		img_data_alpha.reserve(size);
 		img_data_alpha.assign(buffer, buffer + size);
-		delete lzw;
 	}
 }
 
@@ -816,7 +780,7 @@ void decompress_jpg(vector<char> &img_data_color, const IMGHEADER &img_header, e
 	}
 }
 
-vector<char> prepare_bmp_data(const IMGHEADER &img_header, vector<char> &img_data_color, vector<char> &img_data_alpha)
+vector<char> prepare_bmp_data(IMGHEADER &img_header, vector<char> &img_data_color, vector<char> &img_data_alpha)
 {
 	switch (img_header.ihCompression) {
 		case 2: {
@@ -828,7 +792,8 @@ vector<char> prepare_bmp_data(const IMGHEADER &img_header, vector<char> &img_dat
 		}
 		case 5: {
 			decompress_jpg(img_data_color, img_header, BMP);
-			decompress_img(vector<char>(0), img_data_alpha);
+			vector<char> placeholder(0);
+			decompress_img(placeholder, img_data_alpha);
 			break;
 		}
 	}
@@ -939,7 +904,8 @@ vector<char> prepare_jpg_data(const IMGHEADER &img_header, vector<char> &img_dat
 {
 	if (img_header.ihCompression != 5) {
 		if (img_header.ihCompression == 2) {
-			decompress_img(img_data_color, vector<char>(0));
+            vector<char> placeholder(0);
+			decompress_img(img_data_color, placeholder);
 		}
 		if (img_data_color.size() != img_header.ihWidth * img_header.ihHeight * 2) {
 			throw invalid_size("Nieprawidlowy rozmiar danych obrazu!");
@@ -972,7 +938,7 @@ vector<char> prepare_jpg_data(const IMGHEADER &img_header, vector<char> &img_dat
 	}
 }
 
-vector<char> prepare_png_data(const IMGHEADER &img_header, vector<char> &img_data_color, vector<char> &img_data_alpha)
+vector<char> prepare_png_data(IMGHEADER &img_header, vector<char> &img_data_color, vector<char> &img_data_alpha)
 {
 	vector<char> png_data(0);
 	if (img_header.ihCompression != 5) {
@@ -1029,7 +995,8 @@ vector<char> prepare_png_data(const IMGHEADER &img_header, vector<char> &img_dat
 		delete[] buffer;
 	} else {
 		decompress_jpg(img_data_color, img_header, PNG);
-		decompress_img(vector<char>(0), img_data_alpha);
+		vector<char> placeholder(0);
+		decompress_img(placeholder, img_data_alpha);
 		if (img_header.ihSizeAlpha == 0) {
 			if (img_data_color.size() != img_header.ihWidth * img_header.ihHeight * 3) {
 				throw invalid_size("Nieprawidlowy rozmiar danych obrazu!");
@@ -1049,10 +1016,10 @@ vector<char> prepare_png_data(const IMGHEADER &img_header, vector<char> &img_dat
 			throw runtime_error("Nieznany format alfy pliku!\n");
 		}
 	}
-	unsigned buffer_size;
+	size_t buffer_size;
 	char *buffer;
 	buffer = (char *)tdefl_write_image_to_png_file_in_memory_ex(img_data_color.data(), img_header.ihWidth, img_header.ihHeight,
-																(img_header.ihSizeAlpha > 0 ? 4 : 3), &buffer_size, MZ_BEST_COMPRESSION, false);
+        (img_header.ihSizeAlpha > 0 ? 4 : 3), &buffer_size, MZ_BEST_COMPRESSION, false);
 	if (buffer != nullptr && buffer_size != 0) {
 		png_data.assign(buffer, buffer + buffer_size);
 		mz_free(buffer);
@@ -1217,7 +1184,7 @@ int main(int argc, char **argv)
 				if (in_file.good()) {
 					in_file.exceptions(ifstream::failbit);
 					cout << "Przetwarzanie pliku " << argv[arg_iter] << "...\n";
-					const IMGHEADER img_header;
+					IMGHEADER img_header;
 					try {
 						img_header = read_img_header(in_file);
 						check_img_header(img_header);

@@ -1,19 +1,33 @@
 # dePIKczer
-Koder/dekoder formatu graficznego Aidem Media
+Aidem Media graphics format codec
 
-### Do pobrania  
-* [program](https://github.com/Dove6/dePIKczer/raw/master/Release/dePIKczer.exe)  
-* [biblioteka Piklib8.dll](https://github.com/Dove6/dePIKczer/raw/master/Release/Piklib8.dll) (wymagana)  
-* [skrypt do rekursywnej dekompresji](https://github.com/Dove6/dePIKczer/raw/master/Release/recursive_decompress.bat) (opcjonalny)
+*Read this in other language: [polski](README.pl.md).*
 
-### Testowanie
-Do zgłaszanego błędu dołącz zrzut ekranu lub log. Lokalizacja pliku logu to <ins>%AppData%\dePIKczer\error.log</ins>.
+### Download  
+[wydania](https://github.com/Dove6/dePIKczer/releases)  
+Because of the necessity of using an already built DLL, there is only Win32 release available at the moment.
+
+### Testing
+Don't forget to attach a screenshot or a log file to your issue description. You can find the second one in <ins>%AppData%\dePIKczer\error.log</ins>.
+
+### Used libraries
+* [miniz](https://github.com/richgel999/miniz) - for PNG compression
+* [libjpeg-turbo](https://github.com/richgel999/miniz) - for JPEG compression  
+  This software is based in part on the work of the Independent JPEG Group.
+* Piklib8 - for IMG decompression
 
 ### Uwaga
-Używanie tego oprogramowania oraz dokonywanie jakichkolwiek zmian w produktach firmy Aidem Media jest niezgodne z umową licencyjną (zawieraną między Nabywcą a Firmą "z chwilą zdjęcia z opakowania płyty CD folii zabezpieczającej"), zgodnie z punktem drugim wspomnianej umowy:  
->Nabywca nie ma prawa do wynajmowania, dzierżawy, wypożyczania i rozpowszechniania programu, a także do przenoszenia licencji na osoby trzecie bez pisemnej zgody Producenta. Niedozwolone jest kopiowanie i modyfikacja fragmentów lub całości programu jak i wykorzystanie go w publikacjach i innych programach.
+Beware: using this program and performing any changes in Aidem Media's products stays in contradiction to the license agreement (set up between the Purchaser and the Company "once the protective film is removed from the CD packaging"), according to Item 2 of the agreement:
 
-Grozi to konsekwencjami opisanymi w punkcie siódmym:  
->W przypadku naruszenia przez nabywcę umowy licencyjnej Producent będzie dochodził swoich praw i roszczeń, z wypowiedzeniem umowy włącznie. W razie sporów sądowych właściwy będzie Sąd siedziby Producenta.
+"2. Nabywca nie ma prawa do wynajmowania, dzierżawy, wypożyczania i rozpowszechniania programu, a także do przenoszenia licencji na osoby  trzecie bez pisemnej zgody Producenta. Niedozwolone jest kopiowanie i modyfikacja fragmentów lub całości programu jak i wykorzystanie go w publikacjach i innych programach."[<sup>1</sup>](#footnote1)
 
-Użytkowniku, zostałeś ostrzeżony.
+Such behaviour may result in consequences mentioned in Item 7 of the agreement:
+
+"7. W przypadku naruszenia przez nabywcę umowy licencyjnej Producent będzie dochodził swoich praw i roszczeń, z wypowiedzeniem umowy włącznie. W razie sporów sądowych właściwy będzie Sąd siedziby Producenta."[<sup>1</sup>](#footnote1)
+
+
+You have been warned.
+
+---
+
+<span id="footnote1">1.</span> For an official English translation, please ask [Aidem Media](http://aidemmedia.com/) themselves (or other permitted translator).

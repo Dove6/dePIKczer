@@ -5,8 +5,6 @@
 
 #pragma once
 
-#include "targetver.h"
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <cstring>
@@ -24,6 +22,6 @@
 #include <Windows.h>
 #include <io.h>
 
-#include <turbojpeg.h>
-
-#include "miniz.h"
+#include "../external/libjpeg-turbo/turbojpeg.h"
+#include "../external/miniz/miniz.h"
+#include "../external/piklib8_shim/piklib8_shim.h"
