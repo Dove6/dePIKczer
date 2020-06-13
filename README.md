@@ -3,12 +3,12 @@ Aidem Media graphics format codec
 
 *Read this in other language: [polski](README.pl.md).*
 
-### Download  
-[wydania](https://github.com/Dove6/dePIKczer/releases)  
+### Download
+[releases](https://github.com/Dove6/dePIKczer/releases)  
 Because of the necessity of using an already built DLL, there is only Win32 release available at the moment.
 
 ### Testing
-Don't forget to attach a screenshot or a log file to your issue description. You can find the second one in <ins>%AppData%\dePIKczer\error.log</ins>.
+Don't forget to attach a screenshot or a log file (location: <ins>%AppData%\dePIKczer\error.log</ins>) to your issue description.
 
 ### Used libraries
 * [miniz](https://github.com/richgel999/miniz) - for PNG compression
@@ -16,7 +16,7 @@ Don't forget to attach a screenshot or a log file to your issue description. You
   This software is based in part on the work of the Independent JPEG Group.
 * Piklib8 - for IMG decompression
 
-### Uwaga
+### Disclaimer
 Beware: using this program and performing any changes in Aidem Media's products stays in contradiction to the license agreement (set up between the Purchaser and the Company "once the protective film is removed from the CD packaging"), according to Item 2 of the agreement:
 
 "2. Nabywca nie ma prawa do wynajmowania, dzierżawy, wypożyczania i rozpowszechniania programu, a także do przenoszenia licencji na osoby  trzecie bez pisemnej zgody Producenta. Niedozwolone jest kopiowanie i modyfikacja fragmentów lub całości programu jak i wykorzystanie go w publikacjach i innych programach."[<sup>1</sup>](#footnote1)

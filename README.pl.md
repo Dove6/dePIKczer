@@ -12,7 +12,7 @@ Do zgłaszanego błędu dołącz zrzut ekranu lub log. Lokalizacja pliku logu to
 
 ### Użyte biblioteki
 * [miniz](https://github.com/richgel999/miniz) - kompresja PNG
-* [libjpeg-turbo](https://github.com/richgel999/miniz) - kompresja JPEG
+* [libjpeg-turbo](https://github.com/richgel999/miniz) - kompresja JPEG  
   This software is based in part on the work of the Independent JPEG Group.
 * Piklib8 - dekompresja IMG
 

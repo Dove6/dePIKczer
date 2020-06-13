@@ -16,7 +16,7 @@ public:
 		: runtime_error(what_arg)
 	{}
 	compression_failure()
-		: runtime_error("Nieznany blad kompresji!\n")
+		: runtime_error("Unknown compression error!\n")
 	{}
 	compression_failure(const compression_failure &e)
 		: runtime_error(e.what())
@@ -35,7 +35,7 @@ public:
 		: logic_error(what_arg)
 	{}
 	invalid_size()
-		: logic_error("Nieznany blad rozmiaru danych!\n")
+		: logic_error("Unknown data size error!\n")
 	{}
 	invalid_size(const invalid_size &e)
 		: logic_error(e.what())
@@ -51,7 +51,7 @@ public:
 		: runtime_error(what_arg)
 	{}
 	invalid_structure()
-		: runtime_error("Nieznany blad wejscia/wyjscia!\n")
+		: runtime_error("Unknown file structure error!\n")
 	{}
 	invalid_structure(const invalid_structure &e)
 		: runtime_error(e.what())
@@ -67,7 +67,7 @@ public:
 		: runtime_error(what_arg)
 	{}
 	io_failure()
-		: runtime_error("Nieznany blad wejscia/wyjscia!\n")
+		: runtime_error("Unknown I/O error!\n")
 	{}
 	io_failure(const io_failure &e)
 		: runtime_error(e.what())
@@ -83,7 +83,7 @@ public:
 		: runtime_error(what_arg)
 	{}
 	parsing_error()
-		: runtime_error("Nieznany blad parsowania!\n")
+		: runtime_error("Unknown console options parsing error!\n")
 	{}
 	parsing_error(const parsing_error &e)
 		: runtime_error(e.what())
@@ -99,7 +99,7 @@ public:
 		: runtime_error(what_arg)
 	{}
 	path_error()
-		: runtime_error("Nieznany blad sciezki!\n")
+		: runtime_error("Unknown path-related error!\n")
 	{}
 	path_error(const parsing_error &e)
 		: runtime_error(e.what())
@@ -230,27 +230,28 @@ struct IMGHEADER {
 
 ostream &operator<<(ostream &os, const IMGHEADER &ih)
 {
-	os << "[Naglowek IMG]\n"
-			"  typ: " << string(ih.ihType, 4) << "\n"
-			"  szerokosc: " << ih.ihWidth << "px\n"
-			"  wysokosc: " << ih.ihHeight << "px\n"
-			"  glebia: " << ih.ihBitCount << "bpp\n"
-			"  rozmiar obrazu (kolor): " << ih.ihSizeImage << "B\n"
-			"  wypelnienie: " << ih.ihNothing << "\n"
-			"  kompresja: " << ih.ihCompression << (ih.ihCompression == 0 ? " (brak)" :
-												   (ih.ihCompression == 2 ? " (CLZW2)" :
-												   (ih.ihCompression == 4 ? " (eksperymentalna)" :
-												   (ih.ihCompression == 5 ? " (JPEG)" : "")))) << "\n"
-			"  rozmiar obrazu (alfa): " << ih.ihSizeAlpha << "B\n"
-			"  pozycja X: " << ih.ihPosX << "px\n"
-			"  pozycja Y: " << ih.ihPosY << "px\n";
+	os << "[IMG header]\n"
+        "  type: " << string(ih.ihType, 4) << "\n"
+        "  width: " << ih.ihWidth << "px\n"
+        "  height: " << ih.ihHeight << "px\n"
+        "  depth: " << ih.ihBitCount << "bpp\n"
+        "  image size (color): " << ih.ihSizeImage << "B\n"
+        "  padding: " << ih.ihNothing << "\n"
+        "  compression: " << ih.ihCompression
+            << (ih.ihCompression == 0 ? " (none)" :
+                (ih.ihCompression == 2 ? " (CLZW2)" :
+                (ih.ihCompression == 4 ? " (unspecified)" :
+                (ih.ihCompression == 5 ? " (JPEG)" : "")))) << "\n"
+        "  image size (alpha): " << ih.ihSizeAlpha << "B\n"
+        "  X position: " << ih.ihPosX << "px\n"
+        "  Y position: " << ih.ihPosY << "px\n";
 	return os;
 }
 
 #include <pshpack2.h>
 struct BITMAPHEADER {
     BITMAPFILEHEADER bf;
-    BITMAPV5HEADER   bV5;
+    BITMAPV5HEADER bV5;
 };
 #include <poppack.h>
 
@@ -263,9 +264,9 @@ enum output_format {
 struct cli_options {
 	enum output_format format;
 	bool decompress,
-		 custom_dir,
-		 add_game_name,
-		 verbose;
+        custom_dir,
+		add_game_name,
+		verbose;
 	string dir;
 };
 
@@ -273,70 +274,11 @@ array<string, 6> names_to_append = {"RiSP", "RiU", "RiC", "RiWC", "RiKN", "RiKwA
 
 array<vector<string>, 6> characteristic_names;
 
-/*int CLZW2_wrapper(int argc, char **argv)
-{
-	if (argc > 1) {
-		bool decode = false;
-		if (argv[1][0] == '/' && argv[1][1] == 'd') {
-			decode = true;
-		}
-		int i = (decode ? 2 : 1);
-		for (; i < argc; i++) {
-			FILE *in_file = fopen(argv[i], "rb");
-			if (in_file != NULL) {
-				fseek(in_file, 0, SEEK_END);
-				int in_size = ftell(in_file);
-				rewind(in_file);
-
-				char *input = (char *)malloc(in_size * 10 * sizeof(char));
-				int read = fread(input, 1, in_size, in_file);
-				fclose(in_file);
-				std::cout << "Wczytano plik " << argv[i] << " o dlugosci " << read << '\n';
-
-				CLZWCompression2 lzw(input, read);
-
-				char *alt_filename = (char *)malloc((strlen(argv[i]) + 5) * sizeof(char));
-				strcpy(alt_filename, argv[i]);
-				strcat(alt_filename, (decode ? ".dek" : ".kod"));
-
-				FILE *out_file = fopen(alt_filename, "wb");
-				if (out_file != NULL) {
-					if (decode) {
-						char *output = lzw.decompress();
-						int out_size = reinterpret_cast<int *>(input)[0];
-						fwrite(output, 1, out_size, out_file);
-						std::cout << "Zapisano zdekompresowany plik " << alt_filename << " o dlugosci " << out_size << '\n';
-						std::cout << "Stosunek kompresji: " << (float)read / out_size * 100 << "%\n";
-					} else {
-						int out_size = 0;
-						char *output = lzw.compress(out_size);
-						out_size += 8;
-						fwrite(output, 1, out_size, out_file);
-						std::cout << "Zapisano skompresowany plik " << alt_filename << " o dlugosci " << out_size << '\n';
-						std::cout << "Stosunek kompresji: " << (float)out_size / read * 100 << "%\n";
-					}
-					fclose(out_file);
-				} else {
-					std::cout << "Blad otwierania pliku wyjsciowego " << alt_filename << '\n';
-				}
-				free(alt_filename);
-				free(input);
-			} else {
-				std::cout << "Blad otwierania pliku wejsciowego " << argv[i] << '\n';
-			}
-		}
-	} else {
-		std::cout << "Zbyt malo argumentow\n";
-	}
-
-	return 0;
-}*/
-
 string get_winapi_error_msg(unsigned err_code)
 {
 	char *buffer = nullptr;
 	unsigned buffer_size = FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-										  0, err_code, 0, LPSTR(&buffer), 0, nullptr);
+        0, err_code, 0, LPSTR(&buffer), 0, nullptr);
 	string message(buffer, buffer_size);
 	LocalFree(buffer);
 	return message;
@@ -356,7 +298,7 @@ enum output_format parse_output_format(string input)
 	} else if (input == string("png")) {
 		return PNG;
 	} else {
-		throw parsing_error("Nieznany format wyjsciowy!\n");
+		throw parsing_error("Unknown output format!\n");
 	}
 }
 
@@ -383,7 +325,7 @@ void parse_cli_options(const int argc, char **argv, cli_options &options, int &a
 						(arg.size() == 9 || (arg.size() == 10 && arg[1] == '-')))) {
 				//-c, /c, -compress, /compress, --compress
 				options.decompress = false;
-				throw parsing_error("Funkcjonalnosc niezaimplementowana!\n");
+				throw parsing_error("Not implemented!\n");
 			} else if ((arg.size() == 2 && arg[1] == 'f') ||
 						arg.substr(1, 10) == string("out-format") ||
 						(arg.substr(2, 10) == string("out-format") && arg[1] == '-')) {
@@ -393,13 +335,13 @@ void parse_cli_options(const int argc, char **argv, cli_options &options, int &a
 						arg_iter++;
 						options.format = parse_output_format(string(argv[arg_iter]));
 					} else {
-						throw parsing_error("Brak drugiej czesci opcji!\n");
+						throw parsing_error("Option argument missing!\n");
 					}
 				} else {
 					if (arg.size() > 10U + (arg[1] == '-' ? 2 : 1) + 1) {
 						options.format = parse_output_format(arg.substr(10 + (arg[1] == '-' ? 2 : 1) + 1)); //length + prefix ("--") + suffix ('=')
 					} else {
-						throw parsing_error("Brak drugiej czesci opcji!\n");
+						throw parsing_error("Option argument missing!\n");
 					}
 				}
 			} else if ((arg.size() == 2 && arg[1] == 'g') ||
@@ -422,13 +364,13 @@ void parse_cli_options(const int argc, char **argv, cli_options &options, int &a
 						arg_iter++;
 						options.dir = string(argv[arg_iter]);
 					} else {
-						throw parsing_error("Brak drugiej czesci opcji!\n");
+						throw parsing_error("Option argument missing!\n");
 					}
 				} else {
 					if (arg.size() > 7U + (arg[1] == '-' ? 2 : 1) + 1) {
 						options.dir = arg.substr(7 + (arg[1] == '-' ? 2 : 1) + 1); //length + prefix ("--") + suffix ('=')
 					} else {
-						throw parsing_error("Brak drugiej czesci opcji!\n");
+						throw parsing_error("Option argument missing!\n");
 					}
 				}
 			} else if ((arg.size() == 2 && arg[1] == 'v') ||
@@ -437,7 +379,7 @@ void parse_cli_options(const int argc, char **argv, cli_options &options, int &a
 				//-v, /v, -verbose, /verbose, --verbose
 				options.verbose = true;
 			} else {
-				throw parsing_error("Nierozpoznana opcja!\n");
+				throw parsing_error("Unknown option!\n");
 			}
 		} else {
 			return;
@@ -478,7 +420,7 @@ string compose_out_filename(char **argv, const int starting_argument, const int 
 		if (!CreateDirectoryA(options.dir.c_str(), 0)) {
 			unsigned err = GetLastError();
 			if (err == ERROR_PATH_NOT_FOUND) {
-				throw path_error("Nieprawidlowa sciezka katalogu wyjsciowego!");
+				throw path_error("Incorrect output directory path!");
 			} else if (err != ERROR_ALREADY_EXISTS) {
 				throw path_error(get_winapi_error_msg(err));
 			}
@@ -552,7 +494,7 @@ string compose_out_filename(char **argv, const int starting_argument, const int 
 		existance_test.open(result, ios::in);
 	}
 	if (i == 1000) {
-		throw path_error("Nie udalo sie stworzyc nazwy dla pliku!");
+		throw path_error("Couldn't compose output filename!");
 	}
 	return result;
 }
@@ -567,10 +509,10 @@ IMGHEADER read_img_header(ifstream &img_file)
 	try {
 		img_file.read((char *)(&img_header), sizeof(IMGHEADER));
 	} catch (const ifstream::failure &) {
-		throw io_failure("Blad przy wczytywaniu naglowka obrazu!");
+		throw io_failure("Error reading image header!");
 	}
 
-	cout << "Wczytano naglowek IMG!\n";
+	cout << "Read IMG header!\n";
 
 	img_file.seekg(init_pos);
     return img_header;
@@ -579,18 +521,18 @@ IMGHEADER read_img_header(ifstream &img_file)
 void check_img_header(const IMGHEADER &img_header)
 {
 	if (img_header.ihType != string("PIK")) {
-		throw invalid_structure("Nieprawid³owy identyfikator nag³ówka!");
+		throw invalid_structure("Incorrect header identifier!");
 	}
 	if (img_header.ihBitCount != 15 && img_header.ihBitCount != 16) {
-		throw invalid_structure("Nieznany format kolorow!");
+		throw invalid_structure("Unknown color format!");
 	}
 	if (img_header.ihCompression != 0 && img_header.ihCompression != 2 && img_header.ihCompression != 4 && img_header.ihCompression != 5) {
-		throw invalid_structure("Nieznana kompresja!");
+		throw invalid_structure("Unknown compression!");
 	}
 	if (img_header.ihNothing != 0) {
-		throw invalid_structure("Nieznana wartosc w wypelnieniu!");
+		throw invalid_structure("Unexpected padding value!");
 	}
-	cout << "Naglowek poprawny!\n";
+	cout << "The header is correct!\n";
 }
 
 void read_img_data(ifstream &img_file, IMGHEADER &img_header, vector<char> &img_data_color, vector<char> &img_data_alpha)
@@ -610,7 +552,7 @@ void read_img_data(ifstream &img_file, IMGHEADER &img_header, vector<char> &img_
 		}
 		img_data_color.assign(buffer, buffer + img_header.ihSizeImage);
 		delete[] buffer;
-		throw io_failure("Blad przy wczytywaniu danych obrazu! (dopelniono zerami)");
+		throw io_failure("Error reading color image data! (padded with zeroes)");
     }
 	img_data_color.assign(buffer, buffer + img_header.ihSizeImage);
 	delete[] buffer;
@@ -623,7 +565,7 @@ void read_img_data(ifstream &img_file, IMGHEADER &img_header, vector<char> &img_
 		} catch (ifstream::failure &) {
 			img_header.ihSizeAlpha = 0;
 			delete[] buffer;
-			throw io_failure("Blad przy wczytywaniu danych alfy! (pominieto)");
+			throw io_failure("Error reading alpha image data! (skipped)");
 		}
 		delete[] buffer;
 	}
@@ -644,7 +586,7 @@ void determine_compression_format(IMGHEADER &img_header, vector<char> &img_data_
 			if (test == string("\x11\x00\x00")) {
 				img_header.ihCompression = 2;
 			} else {
-				throw invalid_structure("Nieznana kompresja!");
+				throw invalid_structure("Unknown compression!");
 			}
 		}
 	}
@@ -681,7 +623,7 @@ struct BITMAPHEADER *prepare_bmp_header(const IMGHEADER &img_header, const vecto
 		}
 		default: {
 			delete bmp_header;
-			throw runtime_error("Nieznany format kolorow pliku!\n"); //przenieœæ do IMG
+			throw runtime_error("Unknown color format!\n");
 		}
 	}
 
@@ -706,7 +648,7 @@ struct BITMAPHEADER *prepare_bmp_header(const IMGHEADER &img_header, const vecto
     bmp_header->bV5.bV5Reserved = 0;
 
     bmp_header->bf.bfSize = bmp_header->bf.bfOffBits + bmp_header->bV5.bV5SizeImage;
-	cout << "Rozmiar naglowka BMP: " << bmp_header->bf.bfOffBits << "\n";
+	cout << "BMP header size: " << bmp_header->bf.bfOffBits << "\n";
 
     return bmp_header;
 }
@@ -786,7 +728,7 @@ vector<char> prepare_bmp_data(IMGHEADER &img_header, vector<char> &img_data_colo
 		case 2: {
 			decompress_img(img_data_color, img_data_alpha);
 			if (img_data_color.size() != img_header.ihWidth * img_header.ihHeight * 2) {
-				throw invalid_size("Nieprawidlowy rozmiar danych obrazu!");
+				throw invalid_size("Incorrect color image data size!");
 			}
 			break;
 		}
@@ -803,7 +745,7 @@ vector<char> prepare_bmp_data(IMGHEADER &img_header, vector<char> &img_data_colo
 	if (img_header.ihSizeAlpha == 0) {
 		if (img_header.ihCompression == 5) {
 			if (img_data_color.size() != img_header.ihWidth * img_header.ihHeight * 3) {
-				throw invalid_size("Nieprawidlowy rozmiar danych obrazu!");
+				throw invalid_size("Incorrect color image data size!");
 			}
 		}
 		if (img_header.ihBitCount == 15) { //for 16bpp go straight to padding check
@@ -811,7 +753,7 @@ vector<char> prepare_bmp_data(IMGHEADER &img_header, vector<char> &img_data_colo
 			buffer = new char[buffer_size];
 			copy(img_data_color.begin(), img_data_color.end(), buffer);
 			#ifdef _DEBUG
-				clog << "[log] Skopiowano bufor danych obrazu!\n";
+				clog << "[log] Copied color image data buffer!\n";
 			#endif
 			unsigned short green;
 			for (unsigned i = 0; i < buffer_size; i += 2) {
@@ -824,14 +766,14 @@ vector<char> prepare_bmp_data(IMGHEADER &img_header, vector<char> &img_data_colo
 				buffer[i] |= (0xE0 & (green << 3));
 			}
 			#ifdef _DEBUG
-				clog << "[log] Przetworzono bufor danych obrazu!\n";
+				clog << "[log] Converted image color format!\n";
 			#endif
 			//go to padding check
 		}
 	} else {
 		if (img_header.ihCompression == 5) {
 			if (img_data_color.size() != img_header.ihWidth * img_header.ihHeight * 4) {
-				throw invalid_size("Nieprawidlowy rozmiar danych obrazu!");
+				throw invalid_size("Incorrect color image data size!");
 			}
 		}
 		unsigned pixel_count = img_header.ihWidth * img_header.ihHeight;
@@ -865,7 +807,7 @@ vector<char> prepare_bmp_data(IMGHEADER &img_header, vector<char> &img_data_colo
 			}
 		} else {
 			img_header.ihSizeAlpha = 0;
-			throw invalid_size("Nieznany format alfy pliku!\n");
+			throw invalid_size("Unknown alpha data format!\n");
 		}
 	}
 
@@ -881,14 +823,14 @@ vector<char> prepare_bmp_data(IMGHEADER &img_header, vector<char> &img_data_colo
 			copy(padding, padding + padding_length, padded_buffer + i * padded_row_length + row_length);
 		}
 		#ifdef _DEBUG
-			clog << "[log] Przetworzono bufor danych obrazu!\n";
+			clog << "[log] Converted image data!\n";
 		#endif
 		aligned_bmp_data.reserve(padded_buffer_size);
 		aligned_bmp_data.assign(padded_buffer, padded_buffer + padded_buffer_size);
 		delete[] padded_buffer;
 	} else {
 		#ifdef _DEBUG
-			clog << "[log] Przetworzono bufor danych obrazu!\n";
+			clog << "[log] Converted image data!\n";
 		#endif
 		aligned_bmp_data.reserve(buffer_size);
 		aligned_bmp_data.assign(buffer, buffer + buffer_size);
@@ -908,7 +850,7 @@ vector<char> prepare_jpg_data(const IMGHEADER &img_header, vector<char> &img_dat
 			decompress_img(img_data_color, placeholder);
 		}
 		if (img_data_color.size() != img_header.ihWidth * img_header.ihHeight * 2) {
-			throw invalid_size("Nieprawidlowy rozmiar danych obrazu!");
+			throw invalid_size("Incorrect color image data size!");
 		}
 		unsigned pixel_count = img_header.ihWidth * img_header.ihHeight;
 		unsigned buffer_size = pixel_count * 3;
@@ -946,7 +888,7 @@ vector<char> prepare_png_data(IMGHEADER &img_header, vector<char> &img_data_colo
 			decompress_img(img_data_color, img_data_alpha);
 		}
 		if (img_data_color.size() != img_header.ihWidth * img_header.ihHeight * 2) {
-			throw invalid_size("Nieprawidlowy rozmiar danych obrazu!");
+			throw invalid_size("Incorrect color image data size!");
 		}
 		unsigned pixel_count = img_header.ihWidth * img_header.ihHeight;
 		unsigned buffer_size = pixel_count * (img_header.ihSizeAlpha > 0 ? 4 : 3);
@@ -989,7 +931,7 @@ vector<char> prepare_png_data(IMGHEADER &img_header, vector<char> &img_data_colo
 			}
 		} else {
 			img_header.ihSizeAlpha = 0;
-			throw runtime_error("Nieznany format alfy pliku!\n");
+			throw runtime_error("Unknown alpha data format!\n");
 		}
 		img_data_color.assign(buffer, buffer + buffer_size);
 		delete[] buffer;
@@ -999,11 +941,11 @@ vector<char> prepare_png_data(IMGHEADER &img_header, vector<char> &img_data_colo
 		decompress_img(placeholder, img_data_alpha);
 		if (img_header.ihSizeAlpha == 0) {
 			if (img_data_color.size() != img_header.ihWidth * img_header.ihHeight * 3) {
-				throw invalid_size("Nieprawidlowy rozmiar danych obrazu!");
+				throw invalid_size("Incorrect color image data size!");
 			}
 		} else {
 			if (img_data_color.size() != img_header.ihWidth * img_header.ihHeight * 4) {
-				throw invalid_size("Nieprawidlowy rozmiar danych obrazu!");
+				throw invalid_size("Incorrect color image data size!");
 			}
 		}
 		if (img_data_color.size() / 4 == img_data_alpha.size()) {
@@ -1013,7 +955,7 @@ vector<char> prepare_png_data(IMGHEADER &img_header, vector<char> &img_data_colo
 			}
 		} else if (img_header.ihSizeAlpha > 0) {
 			img_header.ihSizeAlpha = 0;
-			throw runtime_error("Nieznany format alfy pliku!\n");
+			throw runtime_error("Unknown alpha data format!\n");
 		}
 	}
 	size_t buffer_size;
@@ -1024,7 +966,7 @@ vector<char> prepare_png_data(IMGHEADER &img_header, vector<char> &img_data_colo
 		png_data.assign(buffer, buffer + buffer_size);
 		mz_free(buffer);
 	} else {
-		throw compression_failure("Nie udalo sie skompresowac obrazu do PNG!\n");
+		throw compression_failure("Error converting image data to PNG format!\n");
 	}
 	return png_data;
 }
@@ -1044,30 +986,27 @@ void write_converted(ofstream &out_file, const vector<char> &out_data)
 void print_help()
 {
 	console_writer::get_instance(true);
-	cout << "Sposob uzycia:\n"
-			"  dePIKczer [opcje] nazwa_pliku1[, nazwa_pliku2, ...]\n"
-			"Dostepne opcje (nalezy poprzedzic znakiem / lub -):\n"
-			"  d,                  dekompresja pliku IMG (opcja domyslna)\n"
+	cout << "Usage:\n"
+			"  dePIKczer [options] filename1[, filename2, ...]\n"
+			"Available options (have to be prefixed with / or -):\n"
+			"  d,                  decompress IMG file (default)\n"
 			"  decompress\n"
-			"  c,                  kompresja pliku BMP, JPG lub PNG do IMG\n"
-			"  compress              (funkcjonalnosc niezaimplementowana)\n"
-			"  f [format],         uzycie podanego formatu jako formatu wyjsciowego\n"
-			"  out-format=[format]   tylko dla dekompresji\n"
-			"                        dostepne formaty:\n"
+			"  c,                  convert BMP, JPG or PNG file to IMG\n"
+			"  compress              (not implemented yet)\n"
+			"  f [format],         specify output file format\n"
+			"  out-format=[format]   (for decompression only)\n"
+			"                        available formats:\n"
 			"                          bmp,\n"
 			"                          jpg, jpeg,\n"
-			"                          png (domyslny)\n"
-			"  g                   wlacza dodawanie sufiksu ze skrotem nazwy gry\n"
-			"  add-game-name         do nazwy pliku wyjsciowego\n"
-			"                        funkcja eksperymentalna\n"
-			"  h,                  wyswietlenie tego tekstu pomocy\n"
+			"                          png (default)\n"
+			"  g                   enable adding game suffix to output filenames\n"
+			"  add-game-name         (experimental)\n"
+			"  h,                  show this help message\n"
 			"  help\n"
-			"  o [sciezka],        uzycie podanego katalogu jako zbiorczego katalogu\n"
-			"  out-dir=[sciezka]     wyjsciowego dla przetworzonych plikow\n"
-			"                        (domyslnie przetworzone pliki zapisywane sa w tym\n"
-			"                        samym katalogu, co pliki wejsciowe)\n"
-			"  v,                  wypisuje dodatkowe dane na wyjscie (wyswietla konsole)\n"
-			"  verbose\n";
+			"  o [sciezka],        use given directory for storing output files\n"
+			"  out-dir=[sciezka]     (input files directory is used by default)\n"
+			"  v,                  print additional debug data (forces console window\n"
+			"  verbose               to be shown)\n";
 }
 
 void log_error(const char *description)
@@ -1083,7 +1022,7 @@ void log_error(const char *description)
 		log_file.close();
 	} else {
 		cerr << description << '\n';
-		cerr << "[Nie udalo sie zapisac bledu do logu]\n\n";
+		cerr << "[Couldn't write to the log file]\n\n";
 	}
 }
 
@@ -1100,7 +1039,7 @@ void log_error(const char *description, const char *error_string)
 		log_file.close();
 	} else {
 		cerr << description << "\n  " << error_string << '\n';
-		cerr << "[Nie udalo sie zapisac bledu do logu]\n\n";
+		cerr << "[Couldn't write to the log file]\n\n";
 	}
 }
 
@@ -1113,11 +1052,11 @@ void log_error(const char *description, const char *error_string, const char *su
 	ofstream log_file(log_path + string("\\error.log"), ios::out | ios::app);
 	if (log_file.good()) {
 		tee_ostream errout(cerr, log_file);
-		errout << description << "\n  " << "dla " << subject << "  \n" << error_string << "\n\n";
+		errout << description << "\n  " << "for " << subject << "  \n" << error_string << "\n\n";
 		log_file.close();
 	} else {
-		cerr << description << "\n  " << "dla " << subject << "  \n" << error_string << '\n';
-		cerr << "[Nie udalo sie zapisac bledu do logu]\n\n";
+		cerr << description << "\n  " << "for " << subject << "  \n" << error_string << '\n';
+		cerr << "[Couldn't write to the log file]\n\n";
 	}
 }
 
@@ -1130,11 +1069,11 @@ void log_error(const char *description, const char *error_string, const char *su
 	ofstream log_file(log_path + string("\\error.log"), ios::out | ios::app);
 	if (log_file.good()) {
 		tee_ostream errout(cerr, log_file);
-		errout << description << "\n  dla " << subject << "\n  " << error_string << '\n' << img_header << '\n';
+		errout << description << "\n  for " << subject << "\n  " << error_string << '\n' << img_header << '\n';
 		log_file.close();
 	} else {
-		cerr << description << "\n  dla " << subject << "\n  " << error_string << '\n' << img_header;
-		cerr << "[Nie udalo sie zapisac bledu do logu]\n\n";
+		cerr << description << "\n  for " << subject << "\n  " << error_string << '\n' << img_header;
+		cerr << "[Couldn't write to the log file]\n\n";
 	}
 }
 
@@ -1147,11 +1086,11 @@ void log_error(const char *description, const char *error_string, const char *su
 	ofstream log_file(log_path + string("\\error.log"), ios::out | ios::app);
 	if (log_file.good()) {
 		tee_ostream errout(cerr, log_file);
-		errout << description << "\n  " << "dla " << subject << "\n  " << error_string << "\n  (" << additional_info << ")\n\n";
+		errout << description << "\n  " << "for " << subject << "\n  " << error_string << "\n  (" << additional_info << ")\n\n";
 		log_file.close();
 	} else {
-		cerr << description << "\n  " << "dla " << subject << "\n  " << error_string << "\n  (" << additional_info << ")\n";
-		cerr << "[Nie udalo sie zapisac bledu do logu]\n\n";
+		cerr << description << "\n  " << "for " << subject << "\n  " << error_string << "\n  (" << additional_info << ")\n";
+		cerr << "[Couldn't write to the log file]\n\n";
 	}
 }
 
@@ -1183,7 +1122,7 @@ int main(int argc, char **argv)
 				ifstream in_file(argv[arg_iter], ios::in | ios::binary);
 				if (in_file.good()) {
 					in_file.exceptions(ifstream::failbit);
-					cout << "Przetwarzanie pliku " << argv[arg_iter] << "...\n";
+					cout << "Processing " << argv[arg_iter] << "...\n";
 					IMGHEADER img_header;
 					try {
 						img_header = read_img_header(in_file);
@@ -1195,17 +1134,17 @@ int main(int argc, char **argv)
 						try {
 							read_img_data(in_file, img_header_mutable, img_data_color, img_data_alpha);
 						} catch (const io_failure &e) {
-							log_error("Blad wejscia/wyjscia!", e.what(), argv[arg_iter], img_header);
+							log_error("I/O failure!", e.what(), argv[arg_iter], img_header);
 						}
-						cout << "Wczytano dane obrazu!\n";
-						cout << "Rozmiar w bajtach: " << img_data_color.size() + img_data_alpha.size();
+						cout << "Read the image data!\n";
+						cout << "Size (in bytes): " << img_data_color.size() + img_data_alpha.size();
 						if (img_data_alpha.size() > 0) {
-							cout << " (w tym alpha: " << img_data_alpha.size() << ')';
+							cout << " (including alpha: " << img_data_alpha.size() << ')';
 						}
 						cout << '\n';
-						if (img_header.ihCompression == 4) {
+						if (img_header.ihCompression == 4) { //unspecified/experimental
 							determine_compression_format(img_header_mutable, img_data_color);
-							cout << "Okreslono format kompresji eksperymentalnej: " << img_header_mutable.ihCompression << '\n';
+							cout << "Unsepcified compression format determined: " << img_header_mutable.ihCompression << '\n';
 						}
 						string out_filename;
 						out_filename = compose_out_filename(argv, starting_argument, arg_iter, options);
@@ -1215,20 +1154,20 @@ int main(int argc, char **argv)
 							switch (options.format) {
 								case BMP: {
 									converted_data = prepare_bmp_data(img_header_mutable, img_data_color, img_data_alpha);
-									cout << "Przekonwertowano do BMP!\n";
-									cout << "Nowy rozmiar w bajtach: " << converted_data.size() << '\n';
+									cout << "Successfully converted to BMP!\n";
+									cout << "New size (in bytes): " << converted_data.size() << '\n';
 									break;
 								}
 								case JPG: {
 									converted_data = prepare_jpg_data(img_header_mutable, img_data_color);
-									cout << "Przekonwertowano do JPG!\n";
-									cout << "Nowy rozmiar w bajtach: " << converted_data.size() << '\n';
+									cout << "Successfully converted to JPG!\n";
+									cout << "New size (in bytes): " << converted_data.size() << '\n';
 									break;
 								}
 								case PNG: {
 									converted_data = prepare_png_data(img_header_mutable, img_data_color, img_data_alpha);
-									cout << "Przekonwertowano do PNG!\n";
-									cout << "Nowy rozmiar w bajtach: " << converted_data.size() << '\n';
+									cout << "Successfully converted to PNG!\n";
+									cout << "New size (in bytes): " << converted_data.size() << '\n';
 									break;
 								}
 							}
@@ -1242,37 +1181,37 @@ int main(int argc, char **argv)
 									break;
 								}
 							}
-							cout << "Zapisano do pliku " << out_filename << "!\n";
+							cout << "Saved to " << out_filename << "!\n";
 							out_file.close();
 						} else {
-							log_error("Blad otwierania pliku wyjsciowego!", strerror(errno), argv[arg_iter], out_filename.c_str());
+							log_error("Error opening output file!", strerror(errno), argv[arg_iter], out_filename.c_str());
 						}
 					} catch (const compression_failure &e) {
-						log_error("Blad kompresji/dekompresji!", e.what(), argv[arg_iter], img_header);
+						log_error("Compression failure!", e.what(), argv[arg_iter], img_header);
 					} catch (const invalid_size &e) {
-						log_error("Blad rozmiaru!", e.what(), argv[arg_iter], img_header);
+						log_error("Invalid size!", e.what(), argv[arg_iter], img_header);
 					} catch (const invalid_structure &e) {
-						log_error("Blad struktury naglowka IMG!", e.what(), argv[arg_iter], img_header);
+						log_error("Invalid IMG header structure!", e.what(), argv[arg_iter], img_header);
 					} catch (const path_error &e) {
-						log_error("Blad sciezki wyjsciowej!", e.what(), argv[arg_iter], img_header);
+						log_error("Path-related error!", e.what(), argv[arg_iter], img_header);
 					} catch (const exception &e) {
-						log_error("Nieznany wyjatek przy iteracji!", e.what(), argv[arg_iter], img_header);
+						log_error("Unexpected exception inside the main loop!", e.what(), argv[arg_iter], img_header);
 					}
 				} else {
-					log_error("Blad otwierania pliku wejsciowego!", strerror(errno), argv[arg_iter]);
+					log_error("Error opening input file!", strerror(errno), argv[arg_iter]);
 				}
 				in_file.close();
 				cout << '\n';
 			}
 		} catch (const parsing_error &e) {
-			log_error("Blad parsowania argumentow!", e.what(), argv[arg_iter]);
+			log_error("Console options parsing error!", e.what(), argv[arg_iter]);
 		} catch (const help_issued &) {
 			print_help();
 		} catch (const exception &e) {
-			log_error("Nieznany wyjatek przy inicjalizacji!", e.what());
+			log_error("Unexpected exception during the initialization!", e.what());
 		}
     } else {
-		log_error("Blad: Nie podano plikow!\n");
+		log_error("Error: No input files specified!\n");
         print_help();
     }
     return 0;
