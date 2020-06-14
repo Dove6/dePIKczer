@@ -1,3 +1,5 @@
+*Read this in other language: [polski](README.pl.md).*
+
 As this is a result of reverse engineering using a closed-source library, some requirements have to be met in order to successfully build it from source. For this reason, binaries are provided.  
 For anyone interested in building it independently, Microsoft Visual C++ x86 toolchain (min. version: 6.0) has to be used.
 
