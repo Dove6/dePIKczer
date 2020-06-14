@@ -24,4 +24,4 @@
 
 #include "../external/libjpeg-turbo/turbojpeg.h"
 #include "../external/miniz/miniz.h"
-#include "../external/piklib8_shim/piklib8_shim.h"
+#include "../external/piklib8_shim/include/piklib8_shim.h"
