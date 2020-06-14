@@ -2,8 +2,8 @@
 //
 
 #include "stdafx.h"
-#include "piklib8_shim.h"
-#include "piklib8_CLZW.h"
+#include "../include/piklib8_shim.h"
+#include "piklib8_CLZW.hpp"
 #include <cstring>
 
 PIKLIB8SHIM_API char *piklib_CLZWCompression2_compress(char *input_string, int input_size, int *output_size)
