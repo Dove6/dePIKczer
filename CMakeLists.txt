@@ -24,6 +24,7 @@ add_executable(dePIKczer_CLI
     src/JPGFormat.cpp
     src/PNGFormat.cpp
     external/miniz/miniz.c
+    src/resource.rc
 )
 
 target_include_directories(dePIKczer_CLI PRIVATE

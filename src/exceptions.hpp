@@ -4,6 +4,10 @@
 #include <stdexcept>
 #include <string>
 
+class not_implemented : public std::exception {
+    const char *what() const noexcept override;
+};
+
 class compression_failure : public std::runtime_error {
 public:
 	compression_failure(const std::string &what_arg);

@@ -2,6 +2,10 @@
 
 using namespace std;
 
+const char *not_implemented::what() const noexcept {
+    return "Functionality not implemented!";
+}
+
 compression_failure::compression_failure(const string &what_arg)
 : runtime_error(what_arg)
 {}

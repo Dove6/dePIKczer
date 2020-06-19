@@ -133,6 +133,7 @@ int main(int argc, char **argv)
 			log_error("Unexpected exception during the initialization!", e.what());
 		}
     } else {
+        console_writer::get_instance(true);
 		log_error("Error: No input files specified!\n");
         print_help();
     }
