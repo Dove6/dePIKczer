@@ -5,6 +5,6 @@
 
 #include "IMGFormat.hpp"
 
-std::vector<char> prepare_png_data(IMGHeader &img_header, std::vector<char> &img_data_color, std::vector<char> &img_data_alpha);
+std::vector<unsigned char> prepare_png_data(IMGHeader &img_header, std::vector<unsigned char> &img_data_color, std::vector<unsigned char> &img_data_alpha);
 
 #endif // DEPIKCZER_PNGFORMAT_HPP

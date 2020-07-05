@@ -1,5 +1,8 @@
+#include <array>
 #include <iostream>
+#include <iterator>
 #include <limits>
+#include <type_traits>
 
 #include "../external/piklib8_shim/include/piklib8_shim.h"
 #include "exceptions.hpp"
@@ -7,25 +10,71 @@
 
 using namespace std;
 
-uint32_t IMGColorDepth::get_value() const
+
+void IMGCompression::set_value(uint32_t new_value)
 {
-    return value;
+    switch (Enum(new_value)) {
+        case NONE_NONE:
+        case CLZW2_CLZW2:
+        case UNKNOWN:
+        case JPEG_CLZW2: {
+            value = Enum(new_value);
+            break;
+        }
+        default: {
+            throw std::domain_error("IMGCompression: Undefined compression type");
+        }
+    }
+}
+
+IMGCompression::operator uint32_t() const
+{
+    return uint32_t(value);
+}
+
+IMGCompression::IMGCompression(uint32_t value)
+{
+    set_value(value);
+}
+
+IMGColorDepth::operator uint32_t() const
+{
+    return uint32_t(value);
 }
 
 void IMGColorDepth::set_value(uint32_t new_value)
 {
-    switch (new_value) {
-        case 2: //alias for 15
-        case 4: //alias for 16
-        case 8: //alias for 24
-        case 15:
-        case 16:
-        case 24: {
-            value = new_value;
+    switch (Enum(new_value)) {
+        case RGB555ALIAS:
+        case RGB565ALIAS:
+        case RGB888ALIAS:
+        case RGB555:
+        case RGB565:
+        case RGB888: {
+            value = Enum(new_value);
             break;
         }
         default: {
             throw std::domain_error("IMGColorDepth: Inacceptable color depth value");
+        }
+    }
+}
+
+std::size_t IMGColorDepth::get_pixel_size() const
+{
+    switch (value) {
+        case RGB555:
+        case RGB555ALIAS:
+        case RGB565:
+        case RGB565ALIAS: {
+            return 2;
+        }
+        case RGB888:
+        case RGB888ALIAS: {
+            return 3;
+        }
+        default: {
+            return 0;
         }
     }
 }
@@ -35,35 +84,79 @@ IMGColorDepth::IMGColorDepth(uint32_t value)
     set_value(value);
 }
 
-void IMGFormat::memory_decompress(const std::vector<unsigned char> &input_memory, PixelFormat pixel_format)
+template<typename T, typename Iterator>
+T from_raw_bytes(Iterator begin_it, Iterator end_it)
 {
-    //assert input_memory.size() >= 40
-    uint32_t input_file_type = 0;
-    unsigned char *binary_input_file_type = reinterpret_cast<unsigned char *>(&input_file_type);
-    std::copy(input_memory.data(), input_memory.data() + sizeof(uint32_t), binary_input_file_type);
-    if (input_file_type != IMGFormat::get_file_type()) {
-        throw invalid_structure("IMGFormat: incorrect file type");
+    static_assert(std::is_same<typename std::iterator_traits<Iterator>::value_type, unsigned char>::value);
+    T ret_value;
+    unsigned char *raw_ret_value = reinterpret_cast<unsigned char *>(&ret_value);
+    auto it = begin_it;
+    for (std::size_t i = 0; i < sizeof(T); i++) {
+        if (it == end_it) {
+            throw runtime_error("from_raw_bytes: input too short");
+        }
+        raw_ret_value[i] = *it;
+        it++;
     }
-    unsigned char *binary_width = reinterpret_cast<unsigned char *>(&width);
-    unsigned char *binary_height = reinterpret_cast<unsigned char *>(&height);
-    uint32_t input_color_depth = 0;
-    unsigned char *binary_color_depth = reinterpret_cast<unsigned char *>(&input_color_depth);
-    unsigned char *binary_image_size = reinterpret_cast<unsigned char *>(&image_size);
-    uint32_t input_compression = 0;
-    unsigned char *binary_compression = reinterpret_cast<unsigned char *>(&input_compression);
-    unsigned char *binary_alpha_size = reinterpret_cast<unsigned char *>(&alpha_size);
-    unsigned char *binary_x_position = reinterpret_cast<unsigned char *>(&x_position);
-    unsigned char *binary_y_position = reinterpret_cast<unsigned char *>(&y_position);
-    std::copy(input_memory.data() + sizeof(uint32_t), input_memory.data() + sizeof(uint32_t) * 2, binary_width);
-    std::copy(input_memory.data() + sizeof(uint32_t) * 2, input_memory.data() + sizeof(uint32_t) * 3, binary_height);
-    std::copy(input_memory.data() + sizeof(uint32_t) * 3, input_memory.data() + sizeof(uint32_t) * 4, binary_color_depth);
-    std::copy(input_memory.data() + sizeof(uint32_t) * 4, input_memory.data() + sizeof(uint32_t) * 6, binary_image_size);
-    std::copy(input_memory.data() + sizeof(uint32_t) * 6, input_memory.data() + sizeof(uint32_t) * 7, binary_compression);
-    std::copy(input_memory.data() + sizeof(uint32_t) * 7, input_memory.data() + sizeof(uint32_t) * 8, binary_alpha_size);
-    std::copy(input_memory.data() + sizeof(uint32_t) * 8, input_memory.data() + sizeof(uint32_t) * 9, binary_x_position);
-    std::copy(input_memory.data() + sizeof(uint32_t) * 9, input_memory.data() + sizeof(uint32_t) * 10, binary_y_position);
-    color_depth = IMGColorDepth(input_color_depth);
-    compression = IMGCompression(input_compression);
+    return ret_value;
+}
+
+void IMGFormat::memory_decompress(const std::vector<unsigned char> &input_memory)
+{
+    const int header_size = 40;
+    //assert input_memory.size() >= 40
+
+    std::array<unsigned char, 4> file_header = {'P', 'I', 'K', '\0'};
+    for (std::size_t i = 0; i < file_header.size(); i++) {
+        if (input_memory[i] != file_header[i]) {
+            throw invalid_structure("IMGFormat: Incorrect file type");
+        }
+    }
+
+    header.width = from_raw_bytes<uint32_t>(input_memory.begin() + file_header.size(), input_memory.end());
+    header.height = from_raw_bytes<uint32_t>(input_memory.begin() + file_header.size() + sizeof(uint32_t), input_memory.end());
+    uint32_t unsafe_color_depth = from_raw_bytes<uint32_t>(input_memory.begin() + file_header.size() + 2 * sizeof(uint32_t), input_memory.end());
+    header.color_depth = unsafe_color_depth;
+    header.image_size = from_raw_bytes<uint32_t>(input_memory.begin() + file_header.size() + 3 * sizeof(uint32_t), input_memory.end());
+    uint32_t unsafe_compression = from_raw_bytes<uint32_t>(input_memory.begin() + file_header.size() + 5 * sizeof(uint32_t), input_memory.end());
+    header.compression = unsafe_compression;
+    header.alpha_size = from_raw_bytes<uint32_t>(input_memory.begin() + file_header.size() + 6 * sizeof(uint32_t), input_memory.end());
+    header.x_position = from_raw_bytes<uint32_t>(input_memory.begin() + file_header.size() + 7 * sizeof(uint32_t), input_memory.end());
+    header.y_position = from_raw_bytes<uint32_t>(input_memory.begin() + file_header.size() + 8 * sizeof(uint32_t), input_memory.end());
+
+    if (input_memory.size() < header.image_size + header.alpha_size + header_size) {
+        throw invalid_size("IMGFormat: Input data too short");
+    }
+
+    uncompressed_rgb_data.reserve(header.width * header.height * header.color_depth.get_pixel_size());
+    if (header.alpha_size != 0) {
+        uncompressed_alpha_data.reserve(header.width * header.height);
+    } else {
+        uncompressed_alpha_data.resize(0);
+    }
+    if (header.compression == IMGCompression::NONE_NONE) {
+        uncompressed_rgb_data.assign(input_memory.begin() + header_size, input_memory.begin() + header_size + header.image_size);
+        if (header.alpha_size != 0) {
+            uncompressed_alpha_data.assign(input_memory.begin() + header_size + header.image_size, input_memory.begin() + header_size + header.image_size + header.alpha_size);
+        }
+    } else if (header.compression == IMGCompression::CLZW2_CLZW2) {
+        std::vector<unsigned char> compressed_rgb_data(input_memory.begin() + header_size, input_memory.begin() + header_size + header.image_size);
+        char *output_buffer;
+        uint32_t output_size = from_raw_bytes<uint32_t>(compressed_rgb_data.begin(), compressed_rgb_data.end());
+        output_buffer = piklib_CLZWCompression2_decompress(reinterpret_cast<char *>(compressed_rgb_data.data()), compressed_rgb_data.size());
+        uncompressed_rgb_data.assign(output_buffer, output_buffer + output_size);
+        piklib_CLZWCompression2_deallocate(output_buffer);
+        if (header.alpha_size != 0) {
+            std::vector<unsigned char> compressed_alpha_data(input_memory.begin() + header_size + header.image_size, input_memory.begin() + header_size + header.image_size + header.alpha_size);
+            output_size = from_raw_bytes<uint32_t>(compressed_alpha_data.begin(), compressed_alpha_data.end());
+            output_buffer = piklib_CLZWCompression2_decompress(reinterpret_cast<char *>(compressed_alpha_data.data()), compressed_alpha_data.size());
+            uncompressed_alpha_data.assign(output_buffer, output_buffer + output_size);
+            piklib_CLZWCompression2_deallocate(output_buffer);
+        }
+    } else if (header.compression == IMGCompression::JPEG_CLZW2) {
+        throw not_implemented();
+    }
+
 }
 
 void IMGFormat::memory_compress(std::vector<unsigned char> &output_memory)
@@ -71,115 +164,96 @@ void IMGFormat::memory_compress(std::vector<unsigned char> &output_memory)
     throw not_implemented();
 }
 
-constexpr uint32_t IMGFormat::get_file_type()
+const IMGHeader &IMGFormat::get_header() const
 {
-    return ('P' + ('I' << 8) + ('K' << 16));
+    return header;
 }
 
-uint32_t IMGFormat::get_width() const
+const std::vector<unsigned char> &IMGFormat::get_pixmap_as_rgb555()
 {
-    return width;
+    if (header.color_depth == IMGColorDepth::RGB555 || header.color_depth == IMGColorDepth::RGB555ALIAS) {
+        return uncompressed_rgb_data;
+    }
+    throw not_implemented();
 }
 
-uint32_t IMGFormat::get_height() const
+const std::vector<unsigned char> &IMGFormat::get_pixmap_as_rgb565()
 {
-    return height;
+    if (header.color_depth == IMGColorDepth::RGB565 || header.color_depth == IMGColorDepth::RGB565ALIAS) {
+        return uncompressed_rgb_data;
+    }
+    throw not_implemented();
 }
 
-IMGColorDepth IMGFormat::get_color_depth() const
+const std::vector<unsigned char> &IMGFormat::get_pixmap_as_rgb888()
 {
-    return color_depth;
+    if (header.color_depth == IMGColorDepth::RGB888 || header.color_depth == IMGColorDepth::RGB888ALIAS) {
+        return uncompressed_rgb_data;
+    }
+    throw not_implemented();
 }
 
-void IMGFormat::set_color_depth(IMGColorDepth new_color_depth)
+const std::vector<unsigned char> &IMGFormat::get_pixmap_as_rgba8888()
 {
-    color_depth = new_color_depth;
+    throw not_implemented();
 }
 
-uint64_t IMGFormat::get_image_size() const
+const std::vector<unsigned char> &IMGFormat::get_original_rgb_pixmap()
 {
-    return image_size;
+    return uncompressed_rgb_data;
 }
 
-IMGCompression IMGFormat::get_compression() const
+const std::vector<unsigned char> &IMGFormat::get_original_alpha_pixmap()
 {
-    return compression;
+    return uncompressed_alpha_data;
 }
 
-void IMGFormat::set_compression(IMGCompression new_compression)
+IMGFormat IMGFormat::from_rgb555_pixmap(const std::vector<unsigned char> &pixmap, const IMGHeader &header)
 {
-    compression = new_compression;
+    throw not_implemented();
 }
 
-uint32_t IMGFormat::get_alpha_size() const
+IMGFormat IMGFormat::from_rgb565_pixmap(const std::vector<unsigned char> &pixmap, const IMGHeader &header)
 {
-    return alpha_size;
+    throw not_implemented();
 }
 
-uint32_t IMGFormat::get_x_position() const
+IMGFormat IMGFormat::from_rgb888_pixmap(const std::vector<unsigned char> &pixmap, const IMGHeader &header)
 {
-    return x_position;
+    throw not_implemented();
+}
+IMGFormat IMGFormat::from_rgba8888_pixmap(const std::vector<unsigned char> &pixmap, const IMGHeader &header)
+{
+    throw not_implemented();
 }
 
-void IMGFormat::set_x_position(uint32_t new_x_position)
+IMGFormat::IMGFormat(const std::vector<unsigned char> &memory)
 {
-    x_position = new_x_position;
+    memory_decompress(memory);
 }
 
-uint32_t IMGFormat::get_y_position() const
-{
-    return y_position;
-}
-
-void IMGFormat::set_y_position(uint32_t new_y_position)
-{
-    y_position = new_y_position;
-}
-
-
-const RawPixmap &IMGFormat::get_pixmap() const
-{
-    return pixmap;
-}
-
-
-IMGFormat::IMGFormat(const RawPixmap &pixmap)
-: pixmap(pixmap)
-{}
-
-IMGFormat::IMGFormat(RawPixmap &&pixmap)
-: pixmap(pixmap)
-{}
-
-IMGFormat::IMGFormat(const std::vector<unsigned char> &memory, PixelFormat pixel_format)
-{
-    memory_decompress(memory, pixel_format);
-}
-
-IMGFormat::IMGFormat(const std::string &filename, PixelFormat pixel_format)
+IMGFormat::IMGFormat(const std::string &filename)
 {
     #ifdef _GLIBCXX_FILESYSTEM
         std::filesystem::path file_path = filename;
-        if (std::filesystem::exists(file_path)) {
-            uintmax_t file_size = std::filesystem::file_size(file_path);
-            if (file_size < 40) {
-                throw std::runtime_error("IMGFormat: specified file is too short");
-            }
-            std::ifstream file_handle(file_path);
-            if (!file_handle) {
-                throw std::runtime_error("IMGFormat: cannot open the file");
-            }
-            std::vector<unsigned char> file_content(file_size);
-            file_handle.read(file_content.data(), file_content.size());
-            if (!file_handle) {
-                throw std::runtime_error("IMGFormat: error reading file content");
-            }
-            memory_decompress(file_content, pixel_format);
-        } else {
+        if (!std::filesystem::exists(file_path)) {
             throw std::runtime_error("IMGFormat: cannot find the specified file");
         }
+        uintmax_t file_size = std::filesystem::file_size(file_path);
+        if (file_size < 40) {
+            throw std::runtime_error("IMGFormat: specified file is too short");
+        }
+        std::ifstream file_handle(file_path);
+        if (!file_handle) {
+            throw std::runtime_error("IMGFormat: cannot open the file");
+        }
+        std::vector<unsigned char> file_content(file_size);
+        file_handle.read(file_content.data(), file_content.size());
+        if (!file_handle) {
+            throw std::runtime_error("IMGFormat: error reading file content");
+        }
     #else
-        std::ifstream file_handle(filename);
+        std::ifstream file_handle(filename, ios::binary);
         if (!file_handle) {
             throw std::runtime_error("IMGFormat: cannot open the file");
         }
@@ -196,14 +270,13 @@ IMGFormat::IMGFormat(const std::string &filename, PixelFormat pixel_format)
         if (!file_handle) {
             throw std::runtime_error("IMGFormat: error reading file content");
         }
-        memory_decompress(file_content, pixel_format);
     #endif // _GLIBCXX_FILESYSTEM
+    memory_decompress(file_content);
 }
 
 ostream &operator<<(ostream &os, const IMGHeader &ih)
 {
 	os << "[IMG header]\n"
-        "  type: " << ih.file_type << "\n"
         "  width: " << ih.width << "px\n"
         "  height: " << ih.height << "px\n"
         "  depth: " << ih.color_depth << "bpp\n"
@@ -215,7 +288,7 @@ ostream &operator<<(ostream &os, const IMGHeader &ih)
                 (ih.compression == 5 ? " (JPEG)" : "")))) << "\n"
         "  image size (alpha): " << ih.alpha_size << "B\n"
         "  X position: " << ih.x_position << "px\n"
-        "  Y position: " << ih.y_position << "px\n";
+        "  Y position: " << ih.y_position << "px";
 	return os;
 }
 
@@ -240,9 +313,6 @@ IMGHeader read_img_header(ifstream &img_file)
 
 void check_img_header(const IMGHeader &img_header)
 {
-	if (img_header.file_type != '\0KIP') {
-		throw invalid_structure("Incorrect header identifier!");
-	}
 	if (img_header.color_depth != 15 && img_header.color_depth != 16) {
 		throw invalid_structure("Unknown color format!");
 	}
@@ -290,12 +360,12 @@ void read_img_data(ifstream &img_file, IMGHeader &img_header, vector<char> &img_
     img_file.seekg(init_pos);
 }
 
-void determine_compression_format(IMGHeader &img_header, vector<char> &img_data_color)
+void determine_compression_format(IMGHeader &img_header, vector<unsigned char> &img_data_color)
 {
 	if (img_header.width * img_header.height * 2 == img_header.image_size) {
 		img_header.compression = 0;
 	} else {
-		string test(img_data_color.data(), 4);
+		string test(reinterpret_cast<char *>(img_data_color.data()), 4);
 		if (test == string("\xFF\xD8\xFF\xE0")) {
 			img_header.compression = 5;
 		} else {

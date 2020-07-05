@@ -2,27 +2,28 @@
 
 #include "ImageFormat.hpp"
 
-void RawPixmap::check_correctness()
+unsigned get_pixel_size(PixelFormat pixel_format)
 {
-    unsigned bytes_per_pixel;
     switch (pixel_format) {
         case PixelFormat::RGB555:
         case PixelFormat::RGB565: {
-            bytes_per_pixel = 2;
-            break;
+            return 2;
         }
         case PixelFormat::RGB24: {
-            bytes_per_pixel = 3;
-            break;
+            return 3;
         }
         case PixelFormat::RGBA32: {
-            bytes_per_pixel = 4;
-            break;
+            return 4;
         }
         default: {
-            bytes_per_pixel = 0;
+            return 0;
         }
     }
+}
+
+void RawPixmap::check_correctness()
+{
+    unsigned bytes_per_pixel = get_pixel_size(pixel_format);
     std::vector<unsigned char>::size_type required_size = width * height * bytes_per_pixel;
     if (pixel_data.size() < required_size) {
         throw std::logic_error("RawPixmap: insufficient pixel_data length");

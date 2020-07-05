@@ -15,10 +15,10 @@ struct BITMAPHEADER {
 };
 #include <poppack.h>
 
-BITMAPHEADER *prepare_bmp_header(const IMGHeader &img_header, const std::vector<char> &bmp_data);
+BITMAPHEADER *prepare_bmp_header(const IMGHeader &img_header, const std::vector<unsigned char> &bmp_data);
 
-std::vector<char> prepare_bmp_data(IMGHeader &img_header, std::vector<char> &img_data_color, std::vector<char> &img_data_alpha);
+std::vector<unsigned char> prepare_bmp_data(IMGHeader &img_header, std::vector<unsigned char> &img_data_color, std::vector<unsigned char> &img_data_alpha);
 
-void write_bmp(std::ofstream &bmp_file, const IMGHeader &img_header, const std::vector<char> &bmp_data);
+void write_bmp(std::ofstream &bmp_file, const IMGHeader &img_header, const std::vector<unsigned char> &bmp_data);
 
 #endif // DEPIKCZER_BMPFORMAT_HPP

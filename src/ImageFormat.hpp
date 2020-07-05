@@ -4,12 +4,14 @@
 #include <cstdint>
 #include <vector>
 
-enum class PixelFormat {
+enum class PixelFormat : unsigned {
     RGB555,
     RGB565,
     RGB24,
     RGBA32
 };
+
+unsigned get_pixel_size(PixelFormat pixel_format);
 
 class RawPixmap {
     uint32_t width;

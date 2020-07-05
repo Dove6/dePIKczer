@@ -7,36 +7,48 @@
 
 #include "ImageFormat.hpp"
 
-struct IMGHeader {
-    uint32_t file_type;
-    uint32_t width;
-    uint32_t height;
-    uint32_t color_depth;
-    uint64_t image_size;
-    uint32_t compression;
-    uint32_t alpha_size;
-    int32_t x_position;
-    int32_t y_position;
-};
-
-enum class IMGCompression : uint32_t {
-    NONE_NONE = 0,
-    CLZW2_CLZW2 = 2,
-    UNKNOWN = 4,
-    JPEG_CLZW2 = 5
-};
-
 class IMGColorDepth {
-    uint32_t value;
+public:
+    enum Enum : uint32_t {
+        RGB555ALIAS = 2,
+        RGB565ALIAS = 4,
+        RGB888ALIAS = 8,
+        RGB555 = 15,
+        RGB565 = 16,
+        RGB888 = 24
+    };
+
+private:
+    Enum value;
+    void set_value(uint32_t new_value);
 
 public:
-    uint32_t get_value() const;
-    void set_value(uint32_t new_value);
+    operator uint32_t() const;
+    std::size_t get_pixel_size() const;
 
     IMGColorDepth(uint32_t value = 16);
 };
 
-class IMGFormat {
+class IMGCompression {
+public:
+    enum Enum : uint32_t {
+        NONE_NONE = 0,
+        CLZW2_CLZW2 = 2,
+        UNKNOWN = 4,
+        JPEG_CLZW2 = 5
+    };
+
+private:
+    Enum value;
+    void set_value(uint32_t new_value);
+
+public:
+    operator uint32_t() const;
+
+    IMGCompression(uint32_t value = 0);
+};
+
+struct IMGHeader {
     uint32_t width;
     uint32_t height;
     IMGColorDepth color_depth;
@@ -45,33 +57,36 @@ class IMGFormat {
     uint32_t alpha_size;
     int32_t x_position;
     int32_t y_position;
+};
 
-    RawPixmap pixmap;
 
-    void memory_decompress(const std::vector<unsigned char> &input_memory, PixelFormat pixel_format);
+class IMGFormat {
+    IMGHeader header;
+
+    std::vector<unsigned char> uncompressed_rgb_data;
+    std::vector<unsigned char> uncompressed_alpha_data;
+
+    void memory_decompress(const std::vector<unsigned char> &input_memory);
     void memory_compress(std::vector<unsigned char> &output_memory);
 
 public:
-    static constexpr uint32_t get_file_type();
-    uint32_t get_width() const;
-    uint32_t get_height() const;
-    IMGColorDepth get_color_depth() const;
-    void set_color_depth(IMGColorDepth new_color_depth);
-    uint64_t get_image_size() const;
-    IMGCompression get_compression() const;
-    void set_compression(IMGCompression new_compression);
-    uint32_t get_alpha_size() const;
-    uint32_t get_x_position() const;
-    void set_x_position(uint32_t new_x_position);
-    uint32_t get_y_position() const;
-    void set_y_position(uint32_t new_y_position);
+    const IMGHeader &get_header() const;
 
-    const RawPixmap &get_pixmap() const;
+    const std::vector<unsigned char> &get_pixmap_as_rgb555();
+    const std::vector<unsigned char> &get_pixmap_as_rgb565();
+    const std::vector<unsigned char> &get_pixmap_as_rgb888();
+    const std::vector<unsigned char> &get_pixmap_as_rgba8888();
 
-    IMGFormat(const RawPixmap &pixmap);
-    IMGFormat(RawPixmap &&pixmap);
-    IMGFormat(const std::vector<unsigned char> &memory, PixelFormat pixel_format = PixelFormat::RGBA32);
-    IMGFormat(const std::string &filename, PixelFormat pixel_format = PixelFormat::RGBA32);
+    const std::vector<unsigned char> &get_original_rgb_pixmap();
+    const std::vector<unsigned char> &get_original_alpha_pixmap();
+
+    static IMGFormat from_rgb555_pixmap(const std::vector<unsigned char> &pixmap, const IMGHeader &header);
+    static IMGFormat from_rgb565_pixmap(const std::vector<unsigned char> &pixmap, const IMGHeader &header);
+    static IMGFormat from_rgb888_pixmap(const std::vector<unsigned char> &pixmap, const IMGHeader &header);
+    static IMGFormat from_rgba8888_pixmap(const std::vector<unsigned char> &pixmap, const IMGHeader &header);
+
+    IMGFormat(const std::vector<unsigned char> &memory);
+    IMGFormat(const std::string &filename);
 };
 
 std::ostream &operator<<(std::ostream &os, const IMGHeader &ih);
@@ -82,7 +97,7 @@ void check_img_header(const IMGHeader &img_header);
 
 void read_img_data(std::ifstream &img_file, IMGHeader &img_header, std::vector<char> &img_data_color, std::vector<char> &img_data_alpha);
 
-void determine_compression_format(IMGHeader &img_header, std::vector<char> &img_data_color);
+void determine_compression_format(IMGHeader &img_header, std::vector<unsigned char> &img_data_color);
 
 void decompress_img(std::vector<char> &img_data_color, std::vector<char> &img_data_alpha);
 

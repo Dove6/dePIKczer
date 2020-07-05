@@ -8,7 +8,7 @@
 
 using namespace std;
 
-BITMAPHEADER *prepare_bmp_header(const IMGHeader &img_header, const vector<char> &bmp_data)
+BITMAPHEADER *prepare_bmp_header(const IMGHeader &img_header, const vector<unsigned char> &bmp_data)
 {
     BITMAPHEADER *bmp_header = new BITMAPHEADER;
 
@@ -69,24 +69,9 @@ BITMAPHEADER *prepare_bmp_header(const IMGHeader &img_header, const vector<char>
     return bmp_header;
 }
 
-vector<char> prepare_bmp_data(IMGHeader &img_header, vector<char> &img_data_color, vector<char> &img_data_alpha)
+vector<unsigned char> prepare_bmp_data(IMGHeader &img_header, vector<unsigned char> &img_data_color, vector<unsigned char> &img_data_alpha)
 {
-	switch (img_header.compression) {
-		case 2: {
-			decompress_img(img_data_color, img_data_alpha);
-			if (img_data_color.size() != img_header.width * img_header.height * 2) {
-				throw invalid_size("Incorrect color image data size!");
-			}
-			break;
-		}
-		case 5: {
-			decompress_jpg(img_data_color, img_header, BMP);
-			vector<char> placeholder(0);
-			decompress_img(placeholder, img_data_alpha);
-			break;
-		}
-	}
-	vector<char> aligned_bmp_data(0);
+	vector<unsigned char> aligned_bmp_data(0);
 	char *buffer = (char *)(img_data_color.data());
 	unsigned buffer_size = img_data_color.size();
 	if (img_header.alpha_size == 0) {
@@ -183,15 +168,15 @@ vector<char> prepare_bmp_data(IMGHeader &img_header, vector<char> &img_data_colo
 		aligned_bmp_data.assign(buffer, buffer + buffer_size);
 	}
 
-	if (buffer != img_data_color.data()) {
+	if (buffer != (char *)img_data_color.data()) {
 		delete[] buffer;
 	}
 	return aligned_bmp_data;
 }
 
-void write_bmp(ofstream &bmp_file, const IMGHeader &img_header, const vector<char> &bmp_data)
+void write_bmp(ofstream &bmp_file, const IMGHeader &img_header, const vector<unsigned char> &bmp_data)
 {
 	BITMAPHEADER *bmp_header = prepare_bmp_header(img_header, bmp_data);
 	bmp_file.write((char *)(bmp_header), sizeof(BITMAPHEADER));
-	bmp_file.write(bmp_data.data(), bmp_data.size());
+	bmp_file.write((const char *)bmp_data.data(), bmp_data.size());
 }
