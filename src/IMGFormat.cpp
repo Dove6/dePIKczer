@@ -1,41 +1,17 @@
 #include <array>
+#include <filesystem>
 #include <iostream>
 #include <iterator>
 #include <limits>
 #include <type_traits>
 
+#include "../external/libjpeg-turbo/jpeglib.h"
 #include "../external/piklib8_shim/include/piklib8_shim.h"
 #include "exceptions.hpp"
 #include "IMGFormat.hpp"
 
 using namespace std;
 
-
-void IMGCompression::set_value(uint32_t new_value)
-{
-    switch (Enum(new_value)) {
-        case NONE_NONE:
-        case CLZW2_CLZW2:
-        case UNKNOWN:
-        case JPEG_CLZW2: {
-            value = Enum(new_value);
-            break;
-        }
-        default: {
-            throw std::domain_error("IMGCompression: Undefined compression type");
-        }
-    }
-}
-
-IMGCompression::operator uint32_t() const
-{
-    return uint32_t(value);
-}
-
-IMGCompression::IMGCompression(uint32_t value)
-{
-    set_value(value);
-}
 
 IMGColorDepth::operator uint32_t() const
 {
@@ -79,7 +55,55 @@ std::size_t IMGColorDepth::get_pixel_size() const
     }
 }
 
+bool IMGColorDepth::is_alias_of(const IMGColorDepth &other) const
+{
+    switch (value) {
+        case RGB555:
+        case RGB555ALIAS: {
+            return (other.value == RGB555 || other.value == RGB555ALIAS);
+        }
+        case RGB565:
+        case RGB565ALIAS: {
+            return (other.value == RGB565 || other.value == RGB565ALIAS);
+        }
+        case RGB888:
+        case RGB888ALIAS: {
+            return (other.value == RGB888 || other.value == RGB888ALIAS);
+        }
+        default: {
+            return false;
+        }
+    }
+}
+
 IMGColorDepth::IMGColorDepth(uint32_t value)
+{
+    set_value(value);
+}
+
+
+void IMGCompression::set_value(uint32_t new_value)
+{
+    switch (Enum(new_value)) {
+        case NONE_NONE:
+        case CLZW2_CLZW2:
+        case UNKNOWN:
+        case JPEG_CLZW2: {
+            value = Enum(new_value);
+            break;
+        }
+        default: {
+            throw std::domain_error("IMGCompression: Undefined compression type");
+        }
+    }
+}
+
+IMGCompression::operator uint32_t() const
+{
+    return uint32_t(value);
+}
+
+IMGCompression::IMGCompression(uint32_t value)
 {
     set_value(value);
 }
@@ -99,6 +123,25 @@ T from_raw_bytes(Iterator begin_it, Iterator end_it)
         it++;
     }
     return ret_value;
+}
+
+//based on: https://stackoverflow.com/a/56191401/7447673
+inline bool is_system_little_endian()
+{
+    const int value{0x01};
+    const unsigned char *least_significant_address = reinterpret_cast<const unsigned char *>(&value);
+    return (*least_significant_address == 0x01);
+}
+
+static void jpeg_error_exit_throwing(j_common_ptr jpeg_dinfo)
+{
+    char buffer[JMSG_LENGTH_MAX];
+
+    //create the message
+    (*jpeg_dinfo->err->format_message)(jpeg_dinfo, buffer);
+
+    //throw the message
+    throw std::runtime_error(buffer);
 }
 
 void IMGFormat::memory_decompress(const std::vector<unsigned char> &input_memory)
@@ -134,29 +177,98 @@ void IMGFormat::memory_decompress(const std::vector<unsigned char> &input_memory
     } else {
         uncompressed_alpha_data.resize(0);
     }
-    if (header.compression == IMGCompression::NONE_NONE) {
-        uncompressed_rgb_data.assign(input_memory.begin() + header_size, input_memory.begin() + header_size + header.image_size);
-        if (header.alpha_size != 0) {
-            uncompressed_alpha_data.assign(input_memory.begin() + header_size + header.image_size, input_memory.begin() + header_size + header.image_size + header.alpha_size);
+    switch (header.compression) {
+        case IMGCompression::NONE_NONE: {
+            uncompressed_rgb_data.assign(input_memory.begin() + header_size, input_memory.begin() + header_size + header.image_size);
+            if (header.alpha_size != 0) {
+                uncompressed_alpha_data.assign(input_memory.begin() + header_size + header.image_size, input_memory.begin() + header_size + header.image_size + header.alpha_size);
+            }
+            break;
         }
-    } else if (header.compression == IMGCompression::CLZW2_CLZW2) {
-        std::vector<unsigned char> compressed_rgb_data(input_memory.begin() + header_size, input_memory.begin() + header_size + header.image_size);
-        char *output_buffer;
-        uint32_t output_size = from_raw_bytes<uint32_t>(compressed_rgb_data.begin(), compressed_rgb_data.end());
-        output_buffer = piklib_CLZWCompression2_decompress(reinterpret_cast<char *>(compressed_rgb_data.data()), compressed_rgb_data.size());
-        uncompressed_rgb_data.assign(output_buffer, output_buffer + output_size);
-        piklib_CLZWCompression2_deallocate(output_buffer);
-        if (header.alpha_size != 0) {
-            std::vector<unsigned char> compressed_alpha_data(input_memory.begin() + header_size + header.image_size, input_memory.begin() + header_size + header.image_size + header.alpha_size);
-            output_size = from_raw_bytes<uint32_t>(compressed_alpha_data.begin(), compressed_alpha_data.end());
-            output_buffer = piklib_CLZWCompression2_decompress(reinterpret_cast<char *>(compressed_alpha_data.data()), compressed_alpha_data.size());
-            uncompressed_alpha_data.assign(output_buffer, output_buffer + output_size);
+        case IMGCompression::CLZW2_CLZW2: {
+            std::vector<unsigned char> compressed_rgb_data(input_memory.begin() + header_size, input_memory.begin() + header_size + header.image_size);
+            char *output_buffer;
+            uint32_t output_size = from_raw_bytes<uint32_t>(compressed_rgb_data.begin(), compressed_rgb_data.end());
+            output_buffer = piklib_CLZWCompression2_decompress(reinterpret_cast<char *>(compressed_rgb_data.data()), compressed_rgb_data.size());
+            uncompressed_rgb_data.assign(output_buffer, output_buffer + output_size);
             piklib_CLZWCompression2_deallocate(output_buffer);
+            if (header.alpha_size != 0) {
+                std::vector<unsigned char> compressed_alpha_data(input_memory.begin() + header_size + header.image_size, input_memory.begin() + header_size + header.image_size + header.alpha_size);
+                output_size = from_raw_bytes<uint32_t>(compressed_alpha_data.begin(), compressed_alpha_data.end());
+                output_buffer = piklib_CLZWCompression2_decompress(reinterpret_cast<char *>(compressed_alpha_data.data()), compressed_alpha_data.size());
+                uncompressed_alpha_data.assign(output_buffer, output_buffer + output_size);
+                piklib_CLZWCompression2_deallocate(output_buffer);
+            }
+            break;
         }
-    } else if (header.compression == IMGCompression::JPEG_CLZW2) {
-        throw not_implemented();
-    }
+        case IMGCompression::JPEG_CLZW2: {
+            //throw not_implemented();
+            /* based on example.txt from libjpeg */
 
+            jpeg_error_mgr jpeg_err;
+            jpeg_decompress_struct jpeg_dinfo;
+
+            jpeg_dinfo.err = jpeg_std_error(&jpeg_err);
+            jpeg_err.error_exit = jpeg_error_exit_throwing;
+            try {
+                jpeg_create_decompress(&jpeg_dinfo);
+
+                jpeg_mem_src(&jpeg_dinfo, input_memory.data() + header_size, header.image_size);
+                jpeg_read_header(&jpeg_dinfo, TRUE);
+
+                size_t sample_width;
+                if (header.color_depth.get_pixel_size() == 2) {
+                    //if header specifies RGB555 or RGB565 pixel format, use RGB565 color space introduced in libjpeg-turbo 1.4
+                    jpeg_dinfo.out_color_space = JCS_RGB565;
+                    sample_width = 2;
+                } else {
+                    jpeg_dinfo.out_color_space = JCS_RGB;
+                    sample_width = 3;
+                }
+                jpeg_calc_output_dimensions(&jpeg_dinfo);
+
+                //physical row width in output buffer
+                size_t row_stride = jpeg_dinfo.output_width * sample_width;
+                //output row buffer
+                //make a one-row-high sample array that will go away when done with image
+                JSAMPARRAY buffer = (*jpeg_dinfo.mem->alloc_sarray)((j_common_ptr)&jpeg_dinfo, JPOOL_IMAGE, row_stride, 1);
+
+                jpeg_start_decompress(&jpeg_dinfo);
+
+                /* Here we use the library's state variable cinfo->output_scanline as the
+                 * loop counter, so that we don't have to keep track ourselves.
+                 */
+                while (jpeg_dinfo.output_scanline < jpeg_dinfo.output_height) {
+                    /* jpeg_read_scanlines expects an array of pointers to scanlines.
+                     * Here the array is only one element long.
+                     */
+                    jpeg_read_scanlines(&jpeg_dinfo, buffer, 1);
+                    if (header.color_depth.is_alias_of(IMGColorDepth::RGB555)) {
+                        unsigned byte_to_edit_index = is_system_little_endian() ? 0 : 1;
+                        for (size_t i = byte_to_edit_index; i < row_stride; i += 2) {
+                            buffer[0][i] = (buffer[0][i] & 0xC0) | ((buffer[0][i] & 0x1F) << 1);
+                        }
+                    }
+                    uncompressed_rgb_data.insert(uncompressed_rgb_data.end(), buffer[0], buffer[0] + row_stride);
+                }
+
+                jpeg_finish_decompress(&jpeg_dinfo);
+                jpeg_destroy_decompress(&jpeg_dinfo);
+
+            } catch (const std::runtime_error &exc) {
+                jpeg_destroy_decompress(&jpeg_dinfo);
+                throw;
+            }
+            if (header.alpha_size != 0) {
+                std::vector<unsigned char> compressed_alpha_data(input_memory.begin() + header_size + header.image_size, input_memory.begin() + header_size + header.image_size + header.alpha_size);
+                uint32_t output_size = from_raw_bytes<uint32_t>(compressed_alpha_data.begin(), compressed_alpha_data.end());
+                char *output_buffer = piklib_CLZWCompression2_decompress(reinterpret_cast<char *>(compressed_alpha_data.data()), compressed_alpha_data.size());
+                uncompressed_alpha_data.assign(output_buffer, output_buffer + output_size);
+                piklib_CLZWCompression2_deallocate(output_buffer);
+            }
+            break;
+        }
+    }
 }
 
 void IMGFormat::memory_compress(std::vector<unsigned char> &output_memory)
@@ -171,7 +283,7 @@ const IMGHeader &IMGFormat::get_header() const
 
 const std::vector<unsigned char> &IMGFormat::get_pixmap_as_rgb555()
 {
-    if (header.color_depth == IMGColorDepth::RGB555 || header.color_depth == IMGColorDepth::RGB555ALIAS) {
+    if (header.color_depth.is_alias_of(IMGColorDepth::RGB555)) {
         return uncompressed_rgb_data;
     }
     throw not_implemented();
@@ -179,7 +291,7 @@ const std::vector<unsigned char> &IMGFormat::get_pixmap_as_rgb555()
 
 const std::vector<unsigned char> &IMGFormat::get_pixmap_as_rgb565()
 {
-    if (header.color_depth == IMGColorDepth::RGB565 || header.color_depth == IMGColorDepth::RGB565ALIAS) {
+    if (header.color_depth.is_alias_of(IMGColorDepth::RGB565)) {
         return uncompressed_rgb_data;
     }
     throw not_implemented();
@@ -187,7 +299,7 @@ const std::vector<unsigned char> &IMGFormat::get_pixmap_as_rgb565()
 
 const std::vector<unsigned char> &IMGFormat::get_pixmap_as_rgb888()
 {
-    if (header.color_depth == IMGColorDepth::RGB888 || header.color_depth == IMGColorDepth::RGB888ALIAS) {
+    if (header.color_depth.is_alias_of(IMGColorDepth::RGB888)) {
         return uncompressed_rgb_data;
     }
     throw not_implemented();
@@ -234,43 +346,23 @@ IMGFormat::IMGFormat(const std::vector<unsigned char> &memory)
 
 IMGFormat::IMGFormat(const std::string &filename)
 {
-    #ifdef _GLIBCXX_FILESYSTEM
-        std::filesystem::path file_path = filename;
-        if (!std::filesystem::exists(file_path)) {
-            throw std::runtime_error("IMGFormat: cannot find the specified file");
-        }
-        uintmax_t file_size = std::filesystem::file_size(file_path);
-        if (file_size < 40) {
-            throw std::runtime_error("IMGFormat: specified file is too short");
-        }
-        std::ifstream file_handle(file_path);
-        if (!file_handle) {
-            throw std::runtime_error("IMGFormat: cannot open the file");
-        }
-        std::vector<unsigned char> file_content(file_size);
-        file_handle.read(file_content.data(), file_content.size());
-        if (!file_handle) {
-            throw std::runtime_error("IMGFormat: error reading file content");
-        }
-    #else
-        std::ifstream file_handle(filename, ios::binary);
-        if (!file_handle) {
-            throw std::runtime_error("IMGFormat: cannot open the file");
-        }
-        //source: https://stackoverflow.com/a/22986486/7447673
-        file_handle.ignore(std::numeric_limits<std::streamsize>::max());
-        std::streamsize file_size = file_handle.gcount();
-        file_handle.clear();
-        file_handle.seekg(0, std::ios_base::beg);
-        if (file_size < 40) {
-            throw std::runtime_error("IMGFormat: specified file is too short");
-        }
-        std::vector<unsigned char> file_content(file_size);
-        file_handle.read(reinterpret_cast<std::ifstream::char_type *>(file_content.data()), file_content.size());
-        if (!file_handle) {
-            throw std::runtime_error("IMGFormat: error reading file content");
-        }
-    #endif // _GLIBCXX_FILESYSTEM
+    std::filesystem::path file_path = filename;
+    if (!std::filesystem::exists(file_path)) {
+        throw std::runtime_error("IMGFormat: cannot find the specified file");
+    }
+    size_t file_size = std::filesystem::file_size(file_path);
+    if (file_size < 40) {
+        throw std::runtime_error("IMGFormat: specified file is too short");
+    }
+    std::ifstream file_handle(file_path, ios::binary);
+    if (!file_handle) {
+        throw std::runtime_error("IMGFormat: cannot open the file");
+    }
+    std::vector<unsigned char> file_content(file_size);
+    file_handle.read((char *)(file_content.data()), file_size);
+    if (!file_handle) {
+        throw std::runtime_error("IMGFormat: error reading file content");
+    }
     memory_decompress(file_content);
 }
 

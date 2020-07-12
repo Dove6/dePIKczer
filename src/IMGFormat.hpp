@@ -25,6 +25,7 @@ private:
 public:
     operator uint32_t() const;
     std::size_t get_pixel_size() const;
+    bool is_alias_of(const IMGColorDepth &other) const;
 
     IMGColorDepth(uint32_t value = 16);
 };

@@ -84,7 +84,7 @@ vector<unsigned char> prepare_bmp_data(IMGHeader &img_header, vector<unsigned ch
 			buffer_size = img_data_color.size();
 			buffer = new char[buffer_size];
 			copy(img_data_color.begin(), img_data_color.end(), buffer);
-			#ifdef _DEBUG
+			#ifdef DEBUG
 				clog << "[log] Copied color image data buffer!\n";
 			#endif
 			unsigned short green;
@@ -97,7 +97,7 @@ vector<unsigned char> prepare_bmp_data(IMGHeader &img_header, vector<unsigned ch
 				buffer[i + 1] |= (0x7 & (green >> 2));
 				buffer[i] |= (0xE0 & (green << 3));
 			}
-			#ifdef _DEBUG
+			#ifdef DEBUG
 				clog << "[log] Converted image color format!\n";
 			#endif
 			//go to padding check
@@ -154,14 +154,14 @@ vector<unsigned char> prepare_bmp_data(IMGHeader &img_header, vector<unsigned ch
 			copy(buffer + i * row_length, buffer + (i + 1) * row_length, padded_buffer + i * padded_row_length);
 			copy(padding, padding + padding_length, padded_buffer + i * padded_row_length + row_length);
 		}
-		#ifdef _DEBUG
+		#ifdef DEBUG
 			clog << "[log] Converted image data!\n";
 		#endif
 		aligned_bmp_data.reserve(padded_buffer_size);
 		aligned_bmp_data.assign(padded_buffer, padded_buffer + padded_buffer_size);
 		delete[] padded_buffer;
 	} else {
-		#ifdef _DEBUG
+		#ifdef DEBUG
 			clog << "[log] Converted image data!\n";
 		#endif
 		aligned_bmp_data.reserve(buffer_size);
